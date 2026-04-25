@@ -21,11 +21,24 @@ def infer_exam_type(institute_name: str) -> str:
     return "advanced" if any(kw in name for kw in IIT_KEYWORDS) else "mains"
 
 
-def load(csv_path: str) -> pd.DataFrame:
+def load(csv_path: str, round_col: str | None = None) -> pd.DataFrame:
+    """
+    round_col: override the round column name (use "Special Round" for CSAB).
+               If None, auto-detects: uses "Round" if present, else "Special Round".
+    """
     df = pd.read_csv(csv_path, dtype=str)
 
     # Standardise column names (strip whitespace)
     df.columns = df.columns.str.strip()
+
+    # Auto-detect round column if not specified
+    if round_col is None:
+        round_col = COL_ROUND if COL_ROUND in df.columns else "Special Round"
+
+    # Normalise: rename whatever round column exists to COL_ROUND so the
+    # rest of the pipeline always sees the same name.
+    if round_col != COL_ROUND and round_col in df.columns:
+        df = df.rename(columns={round_col: COL_ROUND})
 
     # 2016–2017 pre-date the Gender column (female supernumerary seats were
     # introduced in 2018); fill missing Gender with "Gender-Neutral".
@@ -33,6 +46,11 @@ def load(csv_path: str) -> pd.DataFrame:
         df[COL_GENDER] = df[COL_GENDER].fillna("Gender-Neutral")
     else:
         df[COL_GENDER] = "Gender-Neutral"
+
+    # CSAB may not have Quota or Seat Type columns — fill with "ALL" if absent
+    for col in (COL_QUOTA, COL_SEAT_TYPE):
+        if col not in df.columns:
+            df[col] = "ALL"
 
     # Drop rows with missing core fields (Gender excluded — handled above)
     df.dropna(subset=[COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,

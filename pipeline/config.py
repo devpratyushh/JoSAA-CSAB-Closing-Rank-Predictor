@@ -31,10 +31,35 @@ MIN_YEARS_FOR_TREND = 2
 # 0.5 balances both signals equally
 ENSEMBLE_WEIGHT = 0.5
 
-# ── Rounds to predict (even if some years had fewer) ──────────────────────────
-ALL_ROUNDS = [1, 2, 3, 4, 5, 6]
+# ── Rounds to predict ─────────────────────────────────────────────────────────
+JOSAA_ROUNDS = [1, 2, 3, 4, 5, 6]
+CSAB_ROUNDS  = [1, 2]          # CSAB typically has 2 special rounds
+ALL_ROUNDS   = JOSAA_ROUNDS    # default; overridden per source in CLI
+
+# ── Data source configs ────────────────────────────────────────────────────────
+import os
+
+SOURCES = {
+    "josaa": {
+        "csv":        "josaa_ranks.csv",
+        "model":      "josaa_model.pkl",
+        "round_col":  "Round",
+        "rounds":     JOSAA_ROUNDS,
+        "disclaimer": None,
+    },
+    "csab": {
+        "csv":        "csab_ranks.csv",
+        "model":      "csab_model.pkl",
+        "round_col":  "Special Round",
+        "rounds":     CSAB_ROUNDS,
+        "disclaimer": (
+            "CSAB NOTICE: These predictions apply only to institutes with "
+            "leftover seats after JOSAA counselling is complete. An institute "
+            "will NOT appear in CSAB if all its seats were filled during JOSAA."
+        ),
+    },
+}
 
 # ── Model artifact paths ───────────────────────────────────────────────────────
-import os
-MODEL_DIR       = os.path.join(os.path.dirname(__file__), "..", "models")
-MODEL_PATH      = os.path.join(MODEL_DIR, "josaa_model.pkl")
+MODEL_DIR   = os.path.join(os.path.dirname(__file__), "..", "models")
+MODEL_PATH  = os.path.join(MODEL_DIR, "josaa_model.pkl")   # default (JOSAA)
