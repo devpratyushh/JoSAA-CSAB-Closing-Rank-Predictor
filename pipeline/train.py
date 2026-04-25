@@ -39,11 +39,34 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
              COL_SEAT_TYPE, COL_GENDER, COL_EXAM_TYPE]
 
 # Supported trend models for the year-signal component
-TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median"]
+TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
+                "ridge", "svr_linear", "svr_rbf"]
 
-# Exponential decay rate for weighted_ols — weight = exp(λ x (year - min_year))
+# Exponential decay rate for weighted_ols - weight = exp(λ x (year - min_year))
 # λ=0.3 gives the most recent year ~10x the weight of the oldest year (9-year span).
 _DECAY_LAMBDA = 0.3
+
+
+class _ScaledEstimator:
+    """
+    Wraps a sklearn estimator with per-feature StandardScaler on X and y.
+
+    SVR and Ridge work in normalized space; this wrapper handles the
+    transform/inverse-transform so predict([[year]]) returns raw rank values.
+    The RBF kernel has a particularly useful property: when the query year is
+    outside the training range, the kernel weights decay to zero and the
+    prediction reverts toward the training-target mean - approximating median
+    behaviour naturally.
+    """
+    def __init__(self, estimator, scaler_X, scaler_y):
+        self._est = estimator
+        self._sx  = scaler_X
+        self._sy  = scaler_y
+
+    def predict(self, X):
+        X_s = self._sx.transform(np.asarray(X).reshape(-1, 1))
+        y_s = self._est.predict(X_s).reshape(-1, 1)
+        return self._sy.inverse_transform(y_s).ravel()
 
 
 class SlotModel:
@@ -55,11 +78,11 @@ class SlotModel:
         if trend_model not in TREND_MODELS:
             raise ValueError(f"trend_model must be one of {TREND_MODELS}")
         self.trend_model = trend_model
-        # {round_no: sklearn estimator}  — year → close_rank for that round
+        # {round_no: sklearn estimator}  - year → close_rank for that round
         self.round_year_models: dict[int, object] = {}
-        # {round_no: float}  — close[r] / close[last_round], averaged across years
+        # {round_no: float}  - close[r] / close[last_round], averaged across years
         self.round_ratios:      dict[int, float] = {}
-        # {round_no: float}  — fallback median closing rank per round
+        # {round_no: float}  - fallback median closing rank per round
         self.round_medians:     dict[int, float] = {}
         self.max_round: int = 1
         self.n_years:   int = 0   # number of distinct years in training data
@@ -81,7 +104,31 @@ class SlotModel:
         if self.trend_model == "weighted_ols":
             w = np.exp(_DECAY_LAMBDA * (years - years.min()))
             return LinearRegression().fit(Y, closes, sample_weight=w)
-        raise ValueError(f"Unknown trend_model: {self.trend_model!r}")
+
+        # Models that need normalisation (SVR and Ridge operate in standardised space)
+        from sklearn.preprocessing import StandardScaler
+        sx = StandardScaler()
+        sy = StandardScaler()
+        X_s = sx.fit_transform(Y)
+        y_s = sy.fit_transform(closes.reshape(-1, 1)).ravel()
+
+        if self.trend_model == "ridge":
+            from sklearn.linear_model import Ridge
+            # alpha=1.0 in normalised space gives moderate slope shrinkage
+            est = Ridge(alpha=1.0).fit(X_s, y_s)
+        elif self.trend_model == "svr_linear":
+            from sklearn.svm import SVR
+            # Linear kernel SVR - regularised linear fit, C=1 is sklearn default
+            est = SVR(kernel="linear", C=1.0, epsilon=0.1).fit(X_s, y_s)
+        elif self.trend_model == "svr_rbf":
+            from sklearn.svm import SVR
+            # RBF kernel SVR - key property: predictions outside the training
+            # year range revert toward the training-target mean (≈ median).
+            est = SVR(kernel="rbf", C=1.0, epsilon=0.1, gamma="scale").fit(X_s, y_s)
+        else:
+            raise ValueError(f"Unknown trend_model: {self.trend_model!r}")
+
+        return _ScaledEstimator(est, sx, sy)
 
     def fit(self, slot_df: pd.DataFrame) -> None:
         """

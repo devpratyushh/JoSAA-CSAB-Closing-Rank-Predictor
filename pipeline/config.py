@@ -77,7 +77,7 @@ SOURCES = {
         "model":      "csab_model.pkl",
         "round_col":  "Special Round",
         "rounds":     CSAB_ROUNDS,
-        # Widen thresholds — CSAB MAE (~50k) is ~10x JOSAA MAE (~5k),
+        # Widen thresholds - CSAB MAE (~50k) is ~10x JOSAA MAE (~5k),
         # so tight safe/reach bands would be misleading.
         "safe_threshold":  0.60,
         "reach_threshold": 1.50,

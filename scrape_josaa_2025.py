@@ -127,7 +127,7 @@ def debug_selects(page):
 def main():
     completed_rounds = load_completed_rounds(OUTPUT_FILE, YEAR_LABEL)
     if completed_rounds:
-        print(f"Resuming — 2025 rounds already done: {sorted(completed_rounds)}")
+        print(f"Resuming - 2025 rounds already done: {sorted(completed_rounds)}")
 
     file_exists   = os.path.exists(OUTPUT_FILE)
     write_header  = not file_exists
@@ -144,7 +144,7 @@ def main():
         # Confirm/discover round selector
         rounds = wait_for_options(page, SEL_ROUND, timeout=10)
         if not rounds:
-            print("Round dropdown not found with default selector — dumping all selects:")
+            print("Round dropdown not found with default selector - dumping all selects:")
             debug_selects(page)
             browser.close()
             return
@@ -180,7 +180,7 @@ def main():
                     if opts:
                         pick_all(page, SEL_SEAT_TYPE, wait_for_network=False)
                     else:
-                        # Seat Type didn't cascade — dump state for diagnosis
+                        # Seat Type didn't cascade - dump state for diagnosis
                         print("\n  [WARN] Seat Type still empty after cascade. Dumping selects:")
                         debug_selects(page)
                         continue

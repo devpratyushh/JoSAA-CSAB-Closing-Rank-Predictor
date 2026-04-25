@@ -21,10 +21,13 @@ from pipeline.evaluate import backtest
 from pipeline.train import TREND_MODELS
 
 DESCRIPTIONS = {
-    "ols":          "OLS — straight-line trend, equal weight all years",
-    "theil_sen":    "Theil-Sen — robust OLS, median of pairwise slopes",
-    "weighted_ols": "Weighted OLS — recent years weighted ~10x more",
-    "median":       "Median — historical average, ignores trend direction",
+    "ols":          "OLS         - straight-line trend, equal weight all years",
+    "theil_sen":    "Theil-Sen   - robust OLS, median of pairwise slopes",
+    "weighted_ols": "Weighted OLS - recent years weighted ~10x more",
+    "median":       "Median      - historical average, no trend extrapolation",
+    "ridge":        "Ridge       - L2-regularised OLS, slope shrunk toward zero",
+    "svr_linear":   "SVR Linear  - SVM regression, linear kernel (≈ Ridge)",
+    "svr_rbf":      "SVR RBF     - SVM regression, RBF kernel (reverts to mean when extrapolating)",
 }
 
 
@@ -34,7 +37,7 @@ def compare(source: str, test_year: int | None = None) -> pd.DataFrame:
     rnds = cfg["rounds"]
 
     if not os.path.exists(csv):
-        print(f"[{source}] CSV not found: {csv} — skipping.")
+        print(f"[{source}] CSV not found: {csv} - skipping.")
         return pd.DataFrame()
 
     rows = []
@@ -57,7 +60,7 @@ def compare(source: str, test_year: int | None = None) -> pd.DataFrame:
 
     year_label = df["Test Year"].iloc[0]
     print(f"\n{'='*80}")
-    print(f"  {source.upper()} — test year {year_label}  |  "
+    print(f"  {source.upper()} - test year {year_label}  |  "
           f"best: {best_idx}  ({DESCRIPTIONS[best_idx]})")
     print(f"{'='*80}")
     print(df[["Overall MAE"] + [c for c in df.columns

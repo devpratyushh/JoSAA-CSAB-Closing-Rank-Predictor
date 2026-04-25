@@ -129,7 +129,7 @@ def debug_selects(page):
 def main():
     completed = load_completed(OUTPUT_FILE)
     if completed:
-        print(f"Resuming — {len(completed)} (year, round) pairs already done.")
+        print(f"Resuming - {len(completed)} (year, round) pairs already done.")
 
     file_mode    = "a" if completed else "w"
     write_header = not completed
@@ -143,10 +143,10 @@ def main():
         page.goto(URL, wait_until="networkidle")
         time.sleep(1)
 
-        # Discover year selector — dump all selects if not found
+        # Discover year selector - dump all selects if not found
         years = safe_get_options(page, SEL_YEAR)
         if not years:
-            print("Year dropdown not found — dumping all selects:")
+            print("Year dropdown not found - dumping all selects:")
             debug_selects(page)
             browser.close()
             return
@@ -220,7 +220,7 @@ def main():
                             completed.add((year_label, round_label))
 
                     except PlaywrightError as e:
-                        print(f"ERROR: {e} — reloading...")
+                        print(f"ERROR: {e} - reloading...")
                         try:
                             page.goto(URL, wait_until="networkidle")
                             time.sleep(1)

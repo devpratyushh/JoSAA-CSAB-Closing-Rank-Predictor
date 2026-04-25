@@ -123,7 +123,7 @@ def debug_selects(page):
 def main():
     completed = load_completed_rounds(OUTPUT_FILE, YEAR_LABEL)
     if completed:
-        print(f"Resuming — 2025 CSAB rounds already done: {sorted(completed)}")
+        print(f"Resuming - 2025 CSAB rounds already done: {sorted(completed)}")
 
     file_exists  = os.path.exists(OUTPUT_FILE)
     write_header = not file_exists
@@ -142,7 +142,7 @@ def main():
 
         rounds = wait_for_options(page, SEL_ROUND, timeout=10)
         if not rounds:
-            print("Round dropdown not found — check debug output above.")
+            print("Round dropdown not found - check debug output above.")
             browser.close()
             return
 
@@ -205,7 +205,7 @@ def main():
                     time.sleep(1)
 
                 except PlaywrightError as e:
-                    print(f"ERROR: {e} — reloading...")
+                    print(f"ERROR: {e} - reloading...")
                     try:
                         page.goto(URL, wait_until="networkidle")
                         time.sleep(1)

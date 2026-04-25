@@ -47,12 +47,12 @@ def load(csv_path: str, round_col: str | None = None) -> pd.DataFrame:
     else:
         df[COL_GENDER] = "Gender-Neutral"
 
-    # CSAB may not have Quota or Seat Type columns — fill with "ALL" if absent
+    # CSAB may not have Quota or Seat Type columns - fill with "ALL" if absent
     for col in (COL_QUOTA, COL_SEAT_TYPE):
         if col not in df.columns:
             df[col] = "ALL"
 
-    # Drop rows with missing core fields (Gender excluded — handled above)
+    # Drop rows with missing core fields (Gender excluded - handled above)
     df.dropna(subset=[COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
                        COL_SEAT_TYPE,
                        COL_OPEN_RANK, COL_CLOSE_RANK], inplace=True)
