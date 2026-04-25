@@ -11,9 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
-from .config import (
-    COL_YEAR, COL_ROUND, COL_CLOSE_RANK, ALL_ROUNDS,
-)
+from .config import COL_YEAR, COL_ROUND, COL_CLOSE_RANK, ALL_ROUNDS
 from .loader import load
 from .train import SLOT_COLS, SlotModel
 
@@ -31,15 +29,19 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
     train_df = df[df[COL_YEAR].isin(train_years)]
     test_df  = df[df[COL_YEAR] == test_year]
 
+    # Pre-group training data by slot key — O(1) lookup instead of O(n_rows) scan
+    print("Grouping training data...")
+    train_groups = {
+        key: grp for key, grp in train_df.groupby(SLOT_COLS, sort=False)
+    }
+    print(f"Training slots: {len(train_groups):,}  |  Test slots: {test_df[SLOT_COLS].drop_duplicates().shape[0]:,}")
+
     # Accumulators: {round_no: (actuals, predictions)}
     round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in ALL_ROUNDS}
 
-    for key, test_grp in test_df.groupby(SLOT_COLS):
-        slot_key = dict(zip(SLOT_COLS, key))
-        train_grp = train_df[
-            (train_df[list(SLOT_COLS)] == pd.Series(slot_key)).all(axis=1)
-        ]
-        if train_grp.empty:
+    for i, (key, test_grp) in enumerate(test_df.groupby(SLOT_COLS, sort=False)):
+        train_grp = train_groups.get(key)
+        if train_grp is None:
             continue
 
         m = SlotModel()
@@ -52,6 +54,9 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
                 continue
             round_errors[r][0].append(float(test_by_round[r]))
             round_errors[r][1].append(float(preds[r]))
+
+        if (i + 1) % 1000 == 0:
+            print(f"  {i + 1:,} slots processed...")
 
     print(f"\n{'Round':<8} {'N slots':>8} {'MAE':>10}")
     print("─" * 30)
@@ -69,8 +74,8 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
     print(f"{'Overall':<8} {len(all_act):>8,} {overall_mae:>10.1f}")
 
     return {
-        "test_year":   test_year,
-        "overall_mae": overall_mae,
+        "test_year":    test_year,
+        "overall_mae":  overall_mae,
         "round_errors": round_errors,
     }
 
