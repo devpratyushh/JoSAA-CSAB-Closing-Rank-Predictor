@@ -4,7 +4,7 @@ Load and clean josaa_ranks.csv into a pandas DataFrame ready for training.
 Key transforms:
   - Infer Exam Type from institute name (IIT → advanced, rest → mains)
   - Cast ranks to int (drop rows where rank is non-numeric / 'P' for PwD rank)
-  - Optionally keep only the last round per year (most settled cutoffs)
+  - All rounds are kept; filtering to last-round-only is no longer done here.
 """
 
 import pandas as pd
@@ -12,7 +12,7 @@ from .config import (
     COL_YEAR, COL_ROUND, COL_INSTITUTE, COL_PROGRAM,
     COL_QUOTA, COL_SEAT_TYPE, COL_GENDER,
     COL_OPEN_RANK, COL_CLOSE_RANK, COL_EXAM_TYPE,
-    IIT_KEYWORDS, LAST_ROUND_ONLY,
+    IIT_KEYWORDS,
 )
 
 
@@ -55,11 +55,6 @@ def load(csv_path: str) -> pd.DataFrame:
 
     # Infer exam type
     df[COL_EXAM_TYPE] = df[COL_INSTITUTE].apply(infer_exam_type)
-
-    # Keep only last round per year (most settled cutoffs)
-    if LAST_ROUND_ONLY:
-        last_round = df.groupby(COL_YEAR)[COL_ROUND].transform("max")
-        df = df[df[COL_ROUND] == last_round].copy()
 
     df.reset_index(drop=True, inplace=True)
     return df

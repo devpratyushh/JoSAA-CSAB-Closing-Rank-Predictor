@@ -20,15 +20,19 @@ COL_EXAM_TYPE   = "Exam Type"   # "advanced" | "mains"
 # IITs use JEE Advanced ranks; everything else uses JEE Mains ranks.
 IIT_KEYWORDS = ["indian institute of technology", "iit "]
 
-# ── The last round per year is used for training (most settled cutoffs) ────────
-# Set to None to use all rounds.
-LAST_ROUND_ONLY = True
-
 # ── Prediction target year (set to next year before running predict) ───────────
 PREDICT_YEAR = 2025
 
 # ── Minimum historical data points to fit a trend model per combination ────────
 MIN_YEARS_FOR_TREND = 2
+
+# ── Ensemble weight for combining year-trend vs round-ratio predictions ─────────
+# 0.0 = pure round-ratio scaling; 1.0 = pure per-round year trend
+# 0.5 balances both signals equally
+ENSEMBLE_WEIGHT = 0.5
+
+# ── Rounds to predict (even if some years had fewer) ──────────────────────────
+ALL_ROUNDS = [1, 2, 3, 4, 5, 6]
 
 # ── Model artifact paths ───────────────────────────────────────────────────────
 import os

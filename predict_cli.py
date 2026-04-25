@@ -69,18 +69,20 @@ def cmd_predict(args):
         return
 
     pd.set_option("display.max_rows", 200)
-    pd.set_option("display.max_colwidth", 60)
+    pd.set_option("display.max_colwidth", 55)
     pd.set_option("display.width", 0)
+
+    round_cols = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
+    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred"]
 
     for cat in ["safe", "match", "reach"]:
         subset = results[results["Category"] == cat]
         if subset.empty:
             continue
-        print(f"\n{'─'*70}")
+        print(f"\n{'─'*80}")
         print(f"  {cat.upper()} ({len(subset)} options)")
-        print(f"{'─'*70}")
-        print(subset[["Institute", "Academic Program Name",
-                       "Predicted Close", "Last Close", "Years Seen"]].to_string(index=False))
+        print(f"{'─'*80}")
+        print(subset[display_cols].to_string(index=False))
 
     print(f"\nTotal: {len(results)} options  "
           f"(rank={args.rank}, exam={args.exam}, quota={args.quota}, "
