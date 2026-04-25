@@ -142,7 +142,7 @@ def main():
             writer = csv.writer(f)
 
             for year_val, year_label in years:
-                print(f"\n{'─'*60}")
+                print(f"\n{'-'*60}")
                 print(f"Year: {year_label}")
 
                 chosen_select(page, SEL_YEAR, year_val)

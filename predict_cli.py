@@ -1,8 +1,8 @@
 """
 CLI entry point for college predictions.
 
-Usage examples
-──────────────
+Usage examples:
+
 # Train JOSAA model (default):
   python predict_cli.py train
   python predict_cli.py train --source josaa
@@ -50,13 +50,14 @@ def _resolve_source(source: str) -> dict:
 def cmd_train(args):
     from pipeline.train import train
     cfg = _resolve_source(args.source)
-    train(cfg["csv"], model_path=cfg["model_path"])
+    train(cfg["csv"], model_path=cfg["model_path"], trend_model=args.trend_model)
 
 
 def cmd_backtest(args):
     from pipeline.evaluate import backtest
     cfg = _resolve_source(args.source)
-    backtest(cfg["csv"], test_year=args.year, rounds=cfg["rounds"])
+    backtest(cfg["csv"], test_year=args.year, rounds=cfg["rounds"],
+             trend_model=args.trend_model)
 
 
 def cmd_predict(args):
@@ -105,9 +106,9 @@ def cmd_predict(args):
         subset = results[results["Category"] == cat]
         if subset.empty:
             continue
-        print(f"\n{'─'*80}")
+        print(f"\n{'-'*80}")
         print(f"  {cat.upper()} ({len(subset)} options)")
-        print(f"{'─'*80}")
+        print(f"{'-'*80}")
         print(subset[display_cols].to_string(index=False))
 
     print(f"\nTotal: {len(results)} options  "
@@ -125,19 +126,24 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     source_kwargs = dict(
-        type=str,
-        default="josaa",
-        choices=["josaa", "csab"],
+        type=str, default="josaa", choices=["josaa", "csab"],
         help="Data source (default: josaa)",
+    )
+    trend_kwargs = dict(
+        type=str, default="median",
+        choices=["ols", "theil_sen", "weighted_ols", "median"],
+        help="Year-trend model (default: median)",
     )
 
     # train
     tr = sub.add_parser("train", help="Train model from CSV data")
     tr.add_argument("--source", **source_kwargs)
+    tr.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
 
     # backtest
     bt = sub.add_parser("backtest", help="Evaluate model accuracy on a held-out year")
     bt.add_argument("--source", **source_kwargs)
+    bt.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
     bt.add_argument("--year", type=int, default=None,
                     help="Year to use as test set (default: most recent)")
 

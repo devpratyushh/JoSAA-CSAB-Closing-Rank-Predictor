@@ -1,8 +1,8 @@
 """
 Train the ensemble model that predicts closing rank for every round.
 
-Two signals per slot (institute × program × quota × seat_type × gender):
-─────────────────────────────────────────────────────────────────────────
+Two signals per slot (institute x program x quota x seat_type x gender):
+
   1. Year-trend per round
        For each round r, fit LinearRegression(year → closing_rank).
        Captures how the cutoff for *that specific round* has drifted year-over-year.
@@ -10,10 +10,10 @@ Two signals per slot (institute × program × quota × seat_type × gender):
   2. Round-progression ratios
        For each year, record ratio[r] = close[r] / close[last_round_in_year].
        Average ratios across years to learn the typical R1→R2→...→Rfinal shape.
-       At prediction time: predicted_close[r] = predicted_final_close × ratio[r].
+       At prediction time: predicted_close[r] = predicted_final_close x ratio[r].
 
 Ensemble prediction for round r in target year Y:
-       pred = w * direct_year_trend[r](Y)  +  (1-w) * (final_trend(Y) × ratio[r])
+       pred = w * direct_year_trend[r](Y)  +  (1-w) * (final_trend(Y) x ratio[r])
   where w = ENSEMBLE_WEIGHT (default 0.5).
 
 Slots with < MIN_YEARS_FOR_TREND data points for a given round fall back to
@@ -31,12 +31,19 @@ from .config import (
     COL_QUOTA, COL_SEAT_TYPE, COL_GENDER, COL_EXAM_TYPE,
     COL_CLOSE_RANK,
     MIN_YEARS_FOR_TREND, ENSEMBLE_WEIGHT,
-    MODEL_DIR, MODEL_PATH,
+    MODEL_DIR, MODEL_PATH, DEFAULT_TREND_MODEL,
 )
 from .loader import load
 
 SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
              COL_SEAT_TYPE, COL_GENDER, COL_EXAM_TYPE]
+
+# Supported trend models for the year-signal component
+TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median"]
+
+# Exponential decay rate for weighted_ols — weight = exp(λ x (year - min_year))
+# λ=0.3 gives the most recent year ~10x the weight of the oldest year (9-year span).
+_DECAY_LAMBDA = 0.3
 
 
 class SlotModel:
@@ -44,15 +51,37 @@ class SlotModel:
     Per-slot ensemble of year-trend models and round-progression ratios.
     """
 
-    def __init__(self):
-        # {round_no: LinearRegression}  — year → close_rank for that round
-        self.round_year_models: dict[int, LinearRegression] = {}
+    def __init__(self, trend_model: str = DEFAULT_TREND_MODEL):
+        if trend_model not in TREND_MODELS:
+            raise ValueError(f"trend_model must be one of {TREND_MODELS}")
+        self.trend_model = trend_model
+        # {round_no: sklearn estimator}  — year → close_rank for that round
+        self.round_year_models: dict[int, object] = {}
         # {round_no: float}  — close[r] / close[last_round], averaged across years
         self.round_ratios:      dict[int, float] = {}
         # {round_no: float}  — fallback median closing rank per round
         self.round_medians:     dict[int, float] = {}
         self.max_round: int = 1
         self.n_years:   int = 0   # number of distinct years in training data
+
+    def _fit_trend(self, years: np.ndarray, closes: np.ndarray):
+        """Return a fitted sklearn estimator, or None (falls back to median)."""
+        if len(years) < MIN_YEARS_FOR_TREND or self.trend_model == "median":
+            return None
+        Y = years.reshape(-1, 1)
+        if self.trend_model == "ols":
+            return LinearRegression().fit(Y, closes)
+        if self.trend_model == "theil_sen":
+            from sklearn.linear_model import TheilSenRegressor
+            import warnings
+            from sklearn.exceptions import ConvergenceWarning
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ConvergenceWarning)
+                return TheilSenRegressor(random_state=0, max_iter=1000).fit(Y, closes)
+        if self.trend_model == "weighted_ols":
+            w = np.exp(_DECAY_LAMBDA * (years - years.min()))
+            return LinearRegression().fit(Y, closes, sample_weight=w)
+        raise ValueError(f"Unknown trend_model: {self.trend_model!r}")
 
     def fit(self, slot_df: pd.DataFrame) -> None:
         """
@@ -61,17 +90,17 @@ class SlotModel:
         self.max_round = int(slot_df[COL_ROUND].max())
         self.n_years   = int(slot_df[COL_YEAR].nunique())
 
-        # ── Per-round year-trend models ────────────────────────────────────
+        # Per-round year-trend models
         for r, grp in slot_df.groupby(COL_ROUND):
             r = int(r)
             closes = grp[COL_CLOSE_RANK].values.astype(float)
-            years  = grp[COL_YEAR].values.reshape(-1, 1)
+            years  = grp[COL_YEAR].values.astype(float)
             self.round_medians[r] = float(np.median(closes))
-            if len(grp) >= MIN_YEARS_FOR_TREND:
-                m = LinearRegression().fit(years, closes)
+            m = self._fit_trend(years, closes)
+            if m is not None:
                 self.round_year_models[r] = m
 
-        # ── Round-progression ratios ───────────────────────────────────────
+        # Round-progression ratios
         # For each year, compute ratio[r] = close[r] / close[max_round_in_year].
         # Only use years that have *both* the round r and the max round.
         ratio_accum: dict[int, list[float]] = {}
@@ -91,14 +120,14 @@ class SlotModel:
         """
         Ensemble prediction for a single round.
         """
-        # ── Signal 1: direct year trend for this round ─────────────────────
+        # Signal 1: direct year trend for this round
         if round_no in self.round_year_models:
             direct = float(self.round_year_models[round_no].predict([[year]])[0])
         else:
             direct = self.round_medians.get(round_no,
                      self.round_medians.get(self.max_round, 0))
 
-        # ── Signal 2: scale from predicted final-round close ───────────────
+        # Signal 2: scale from predicted final-round close
         if self.max_round in self.round_year_models:
             pred_final = float(
                 self.round_year_models[self.max_round].predict([[year]])[0]
@@ -118,19 +147,21 @@ class SlotModel:
         return {r: int(round(self.predict_round(r, year))) for r in rounds}
 
 
-def train(csv_path: str, model_path: str = MODEL_PATH) -> dict:
+def train(csv_path: str, model_path: str = MODEL_PATH,
+          trend_model: str = DEFAULT_TREND_MODEL) -> dict:
     df = load(csv_path)
     print(f"Training on {len(df):,} rows  |  "
           f"{df[COL_YEAR].nunique()} years  |  "
-          f"{df[COL_ROUND].nunique()} rounds")
+          f"{df[COL_ROUND].nunique()} rounds  |  "
+          f"trend={trend_model}")
 
     slots: dict[tuple, SlotModel] = {}
     for key, grp in df.groupby(SLOT_COLS):
-        m = SlotModel()
+        m = SlotModel(trend_model=trend_model)
         m.fit(grp)
         slots[tuple(key)] = m
 
-    model = {"slots": slots, "slot_cols": SLOT_COLS}
+    model = {"slots": slots, "slot_cols": SLOT_COLS, "trend_model": trend_model}
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     with open(model_path, "wb") as f:
