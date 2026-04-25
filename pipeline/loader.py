@@ -27,9 +27,16 @@ def load(csv_path: str) -> pd.DataFrame:
     # Standardise column names (strip whitespace)
     df.columns = df.columns.str.strip()
 
-    # Drop rows with missing core fields
+    # 2016–2017 pre-date the Gender column (female supernumerary seats were
+    # introduced in 2018); fill missing Gender with "Gender-Neutral".
+    if COL_GENDER in df.columns:
+        df[COL_GENDER] = df[COL_GENDER].fillna("Gender-Neutral")
+    else:
+        df[COL_GENDER] = "Gender-Neutral"
+
+    # Drop rows with missing core fields (Gender excluded — handled above)
     df.dropna(subset=[COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
-                       COL_SEAT_TYPE, COL_GENDER,
+                       COL_SEAT_TYPE,
                        COL_OPEN_RANK, COL_CLOSE_RANK], inplace=True)
 
     # Cast year and round to int
