@@ -1,0 +1,8 @@
+.vscode/
+__pycache__/
+
+
+*.aux
+*.log
+*.toc
+*.out
