@@ -12,7 +12,7 @@ from .config import (
     COL_YEAR, COL_ROUND, COL_INSTITUTE, COL_PROGRAM,
     COL_QUOTA, COL_SEAT_TYPE, COL_GENDER,
     COL_OPEN_RANK, COL_CLOSE_RANK, COL_EXAM_TYPE,
-    IIT_KEYWORDS,
+    IIT_KEYWORDS, CSAB_QUOTA_NORM,
 )
 
 
@@ -77,6 +77,11 @@ def load(csv_path: str, round_col: str | None = None) -> pd.DataFrame:
     df.dropna(subset=[COL_CLOSE_RANK], inplace=True)
     df[COL_CLOSE_RANK] = df[COL_CLOSE_RANK].astype(int)
     df[COL_OPEN_RANK]  = df[COL_OPEN_RANK].astype(int)
+
+    # Normalise CSAB quota names (current-year page uses full strings vs abbreviations)
+    df[COL_QUOTA] = df[COL_QUOTA].apply(
+        lambda q: CSAB_QUOTA_NORM.get(q.strip().lower(), q)
+    )
 
     # Infer exam type
     df[COL_EXAM_TYPE] = df[COL_INSTITUTE].apply(infer_exam_type)

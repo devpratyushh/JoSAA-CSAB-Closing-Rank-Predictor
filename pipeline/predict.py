@@ -18,9 +18,6 @@ import pickle
 import pandas as pd
 from .config import MODEL_PATH, PREDICT_YEAR, ALL_ROUNDS
 
-SAFE_THRESHOLD  = 0.80
-REACH_THRESHOLD = 1.20
-
 
 def load_model(path: str = MODEL_PATH) -> dict:
     with open(path, "rb") as f:
@@ -28,15 +25,17 @@ def load_model(path: str = MODEL_PATH) -> dict:
 
 
 def predict(
-    rank:          int,
-    exam_type:     str,       # "advanced" | "mains"
-    quota:         str,       # "AI" | "HS" | "OS" | ...
-    seat_type:     str,       # "OPEN" | "OBC-NCL" | "SC" | "ST" | "EWS" | ...
-    gender:        str,       # "Gender-Neutral" | "Female-only (including Supernumerary)"
-    model:         dict | None = None,
-    year:          int = PREDICT_YEAR,
-    rounds:        list[int] = ALL_ROUNDS,
-    include_reach: bool = True,
+    rank:            int,
+    exam_type:       str,       # "advanced" | "mains"
+    quota:           str,       # "AI" | "HS" | "OS" | ...
+    seat_type:       str,       # "OPEN" | "OBC-NCL" | "SC" | "ST" | "EWS" | ...
+    gender:          str,       # "Gender-Neutral" | "Female-only (including Supernumerary)"
+    model:           dict | None = None,
+    year:            int = PREDICT_YEAR,
+    rounds:          list[int] = ALL_ROUNDS,
+    include_reach:   bool = True,
+    safe_threshold:  float = 0.80,
+    reach_threshold: float = 1.20,
 ) -> pd.DataFrame:
     if model is None:
         model = load_model()
@@ -62,11 +61,11 @@ def predict(
         pred_final = round_preds.get(final_r) or round_preds[max(round_preds)]
 
         ratio = rank / pred_final
-        if ratio <= SAFE_THRESHOLD:
+        if ratio <= safe_threshold:
             category = "safe"
         elif ratio <= 1.0:
             category = "match"
-        elif ratio <= REACH_THRESHOLD and include_reach:
+        elif ratio <= reach_threshold and include_reach:
             category = "reach"
         else:
             continue
@@ -82,6 +81,7 @@ def predict(
             row[f"R{r}"] = round_preds.get(r, "-")
 
         row["Final Pred"] = pred_final
+        row["Years"]      = slot_model.n_years
         row["Category"]   = category
         results.append(row)
 

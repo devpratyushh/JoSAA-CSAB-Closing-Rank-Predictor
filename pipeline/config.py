@@ -36,6 +36,20 @@ JOSAA_ROUNDS = [1, 2, 3, 4, 5, 6]
 CSAB_ROUNDS  = [1, 2]          # CSAB typically has 2 special rounds
 ALL_ROUNDS   = JOSAA_ROUNDS    # default; overridden per source in CLI
 
+# ── CSAB quota name normalisation (current-year page uses full names) ──────────
+# Historical archive uses abbreviations; current-year page uses full strings.
+# Map everything to the abbreviation so all years share the same key space.
+CSAB_QUOTA_NORM: dict[str, str] = {
+    "all india":            "AI",
+    "home state":           "HS",
+    "other state":          "OS",
+    "home state for goa":   "GO",
+    "jammu & kashmir (ut)": "JK",
+    "jammu and kashmir":    "JK",
+    "ladakh (ut)":          "LA",
+    "ladakh":               "LA",
+}
+
 # ── Data source configs ────────────────────────────────────────────────────────
 import os
 
@@ -45,6 +59,9 @@ SOURCES = {
         "model":      "josaa_model.pkl",
         "round_col":  "Round",
         "rounds":     JOSAA_ROUNDS,
+        # safe ≤ 0.80×pred, match ≤ 1.00×pred, reach ≤ 1.20×pred
+        "safe_threshold":  0.80,
+        "reach_threshold": 1.20,
         "disclaimer": None,
     },
     "csab": {
@@ -52,10 +69,16 @@ SOURCES = {
         "model":      "csab_model.pkl",
         "round_col":  "Special Round",
         "rounds":     CSAB_ROUNDS,
+        # Widen thresholds — CSAB MAE (~50k) is ~10× JOSAA MAE (~5k),
+        # so tight safe/reach bands would be misleading.
+        "safe_threshold":  0.60,
+        "reach_threshold": 1.50,
         "disclaimer": (
             "CSAB NOTICE: These predictions apply only to institutes with "
             "leftover seats after JOSAA counselling is complete. An institute "
-            "will NOT appear in CSAB if all its seats were filled during JOSAA."
+            "will NOT appear in CSAB if all its seats were filled during JOSAA. "
+            "CSAB closing ranks are highly variable year-to-year (model MAE ~50,000); "
+            "treat all categories as rough guidance only."
         ),
     },
 }

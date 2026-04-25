@@ -3,13 +3,18 @@ CLI entry point for college predictions.
 
 Usage examples
 ──────────────
-# Train (run once after scraping is done):
+# Train JOSAA model (default):
   python predict_cli.py train
+  python predict_cli.py train --source josaa
 
-# Backtest (check model accuracy on held-out year):
+# Train CSAB model:
+  python predict_cli.py train --source csab
+
+# Backtest:
   python predict_cli.py backtest
+  python predict_cli.py backtest --source csab --year 2024
 
-# Predict:
+# Predict (JOSAA):
   python predict_cli.py predict \
       --rank 5000 \
       --exam mains \
@@ -17,34 +22,52 @@ Usage examples
       --seat-type OPEN \
       --gender Gender-Neutral
 
+# Predict (CSAB):
   python predict_cli.py predict \
-      --rank 1200 \
-      --exam advanced \
+      --source csab \
+      --rank 8000 \
+      --exam mains \
       --quota AI \
-      --seat-type OBC-NCL \
-      --gender Gender-Neutral \
-      --no-reach
+      --seat-type OPEN \
+      --gender Gender-Neutral
 """
 
 import argparse
+import os
 import sys
 import pandas as pd
 
-CSV_PATH = "josaa_ranks.csv"
+from pipeline.config import SOURCES, MODEL_DIR
+
+
+def _resolve_source(source: str) -> dict:
+    """Return SOURCES entry with model_path resolved to absolute path."""
+    cfg = SOURCES[source].copy()
+    cfg["model_path"] = os.path.join(MODEL_DIR, cfg["model"])
+    return cfg
 
 
 def cmd_train(args):
     from pipeline.train import train
-    train(CSV_PATH)
+    cfg = _resolve_source(args.source)
+    train(cfg["csv"], model_path=cfg["model_path"])
 
 
 def cmd_backtest(args):
     from pipeline.evaluate import backtest
-    backtest(CSV_PATH, test_year=args.year)
+    cfg = _resolve_source(args.source)
+    backtest(cfg["csv"], test_year=args.year, rounds=cfg["rounds"])
 
 
 def cmd_predict(args):
     from pipeline.predict import predict, load_model
+
+    cfg = _resolve_source(args.source)
+
+    if not os.path.exists(cfg["model_path"]):
+        print(f"Model not found: {cfg['model_path']}")
+        print(f"Run:  python predict_cli.py train --source {args.source}")
+        sys.exit(1)
 
     # Normalise gender input
     gender = args.gender
@@ -53,15 +76,18 @@ def cmd_predict(args):
     else:
         gender = "Gender-Neutral"
 
-    model = load_model()
+    model = load_model(cfg["model_path"])
     results = predict(
-        rank        = args.rank,
-        exam_type   = args.exam.lower(),
-        quota       = args.quota.upper(),
-        seat_type   = args.seat_type,
-        gender      = gender,
-        model       = model,
-        include_reach = not args.no_reach,
+        rank            = args.rank,
+        exam_type       = args.exam.lower(),
+        quota           = args.quota.upper(),
+        seat_type       = args.seat_type,
+        gender          = gender,
+        model           = model,
+        rounds          = cfg["rounds"],
+        include_reach   = not args.no_reach,
+        safe_threshold  = cfg["safe_threshold"],
+        reach_threshold = cfg["reach_threshold"],
     )
 
     if results.empty:
@@ -72,8 +98,8 @@ def cmd_predict(args):
     pd.set_option("display.max_colwidth", 55)
     pd.set_option("display.width", 0)
 
-    round_cols = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
-    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred"]
+    round_cols   = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
+    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred", "Years"]
 
     for cat in ["safe", "match", "reach"]:
         subset = results[results["Category"] == cat]
@@ -85,35 +111,50 @@ def cmd_predict(args):
         print(subset[display_cols].to_string(index=False))
 
     print(f"\nTotal: {len(results)} options  "
-          f"(rank={args.rank}, exam={args.exam}, quota={args.quota}, "
-          f"seat={args.seat_type}, gender={gender})")
+          f"(source={args.source}, rank={args.rank}, exam={args.exam}, "
+          f"quota={args.quota}, seat={args.seat_type}, gender={gender})")
+
+    if cfg["disclaimer"]:
+        print(f"\n{'!'*80}")
+        print(f"  {cfg['disclaimer']}")
+        print(f"{'!'*80}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="JOSAA College Predictor")
+    parser = argparse.ArgumentParser(description="JOSAA / CSAB College Predictor")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    source_kwargs = dict(
+        type=str,
+        default="josaa",
+        choices=["josaa", "csab"],
+        help="Data source (default: josaa)",
+    )
+
     # train
-    sub.add_parser("train", help="Train model from josaa_ranks.csv")
+    tr = sub.add_parser("train", help="Train model from CSV data")
+    tr.add_argument("--source", **source_kwargs)
 
     # backtest
-    bt = sub.add_parser("backtest", help="Evaluate model accuracy")
+    bt = sub.add_parser("backtest", help="Evaluate model accuracy on a held-out year")
+    bt.add_argument("--source", **source_kwargs)
     bt.add_argument("--year", type=int, default=None,
                     help="Year to use as test set (default: most recent)")
 
     # predict
-    pr = sub.add_parser("predict", help="Predict colleges for a student")
-    pr.add_argument("--rank",      type=int,   required=True,  help="Your rank")
-    pr.add_argument("--exam",      type=str,   required=True,
-                    choices=["advanced", "mains"],              help="Exam type")
-    pr.add_argument("--quota",     type=str,   required=True,
+    pr = sub.add_parser("predict", help="Predict colleges for a student profile")
+    pr.add_argument("--source",    **source_kwargs)
+    pr.add_argument("--rank",      type=int, required=True,  help="Your rank")
+    pr.add_argument("--exam",      type=str, required=True,
+                    choices=["advanced", "mains"],           help="Exam type")
+    pr.add_argument("--quota",     type=str, required=True,
                     help="Quota: AI, HS, OS ...")
-    pr.add_argument("--seat-type", type=str,   required=True,
+    pr.add_argument("--seat-type", type=str, required=True,
                     help="Seat type: OPEN, OBC-NCL, SC, ST, EWS ...")
-    pr.add_argument("--gender",    type=str,   default="Gender-Neutral",
+    pr.add_argument("--gender",    type=str, default="Gender-Neutral",
                     help="Gender-Neutral (default) or Female")
     pr.add_argument("--no-reach",  action="store_true",
-                    help="Exclude reach colleges")
+                    help="Exclude reach colleges from output")
 
     args = parser.parse_args()
     {"train": cmd_train, "backtest": cmd_backtest, "predict": cmd_predict}[args.cmd](args)

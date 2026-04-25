@@ -52,12 +52,14 @@ class SlotModel:
         # {round_no: float}  — fallback median closing rank per round
         self.round_medians:     dict[int, float] = {}
         self.max_round: int = 1
+        self.n_years:   int = 0   # number of distinct years in training data
 
     def fit(self, slot_df: pd.DataFrame) -> None:
         """
         slot_df: all rows for one slot, all years, all rounds.
         """
         self.max_round = int(slot_df[COL_ROUND].max())
+        self.n_years   = int(slot_df[COL_YEAR].nunique())
 
         # ── Per-round year-trend models ────────────────────────────────────
         for r, grp in slot_df.groupby(COL_ROUND):
@@ -116,7 +118,7 @@ class SlotModel:
         return {r: int(round(self.predict_round(r, year))) for r in rounds}
 
 
-def train(csv_path: str) -> dict:
+def train(csv_path: str, model_path: str = MODEL_PATH) -> dict:
     df = load(csv_path)
     print(f"Training on {len(df):,} rows  |  "
           f"{df[COL_YEAR].nunique()} years  |  "
@@ -131,10 +133,10 @@ def train(csv_path: str) -> dict:
     model = {"slots": slots, "slot_cols": SLOT_COLS}
 
     os.makedirs(MODEL_DIR, exist_ok=True)
-    with open(MODEL_PATH, "wb") as f:
+    with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
-    print(f"Trained {len(slots):,} slot models → {MODEL_PATH}")
+    print(f"Trained {len(slots):,} slot models → {model_path}")
     return model
 
 

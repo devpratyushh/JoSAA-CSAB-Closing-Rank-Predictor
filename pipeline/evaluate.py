@@ -16,7 +16,7 @@ from .loader import load
 from .train import SLOT_COLS, SlotModel
 
 
-def backtest(csv_path: str, test_year: int | None = None) -> dict:
+def backtest(csv_path: str, test_year: int | None = None, rounds: list[int] | None = None) -> dict:
     df = load(csv_path)
     all_years = sorted(df[COL_YEAR].unique())
 
@@ -25,6 +25,9 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
 
     train_years = [y for y in all_years if y < test_year]
     print(f"Backtest  |  train: {train_years}  |  test: {test_year}")
+
+    if rounds is None:
+        rounds = ALL_ROUNDS
 
     train_df = df[df[COL_YEAR].isin(train_years)]
     test_df  = df[df[COL_YEAR] == test_year]
@@ -37,7 +40,7 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
     print(f"Training slots: {len(train_groups):,}  |  Test slots: {test_df[SLOT_COLS].drop_duplicates().shape[0]:,}")
 
     # Accumulators: {round_no: (actuals, predictions)}
-    round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in ALL_ROUNDS}
+    round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in rounds}
 
     for i, (key, test_grp) in enumerate(test_df.groupby(SLOT_COLS, sort=False)):
         train_grp = train_groups.get(key)
@@ -46,10 +49,10 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
 
         m = SlotModel()
         m.fit(train_grp)
-        preds = m.predict_all_rounds(test_year, ALL_ROUNDS)
+        preds = m.predict_all_rounds(test_year, rounds)
 
         test_by_round = test_grp.set_index(COL_ROUND)[COL_CLOSE_RANK].to_dict()
-        for r in ALL_ROUNDS:
+        for r in rounds:
             if r not in test_by_round or r not in preds:
                 continue
             round_errors[r][0].append(float(test_by_round[r]))
@@ -61,7 +64,7 @@ def backtest(csv_path: str, test_year: int | None = None) -> dict:
     print(f"\n{'Round':<8} {'N slots':>8} {'MAE':>10}")
     print("─" * 30)
     all_act, all_pred = [], []
-    for r in ALL_ROUNDS:
+    for r in rounds:
         act, pred = round_errors[r]
         if not act:
             continue
