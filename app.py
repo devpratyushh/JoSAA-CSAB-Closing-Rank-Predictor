@@ -69,6 +69,16 @@ def _slot_label(row: pd.Series) -> str:
     return f"{inst} · {prog}"
 
 
+def _slot_legend_label(row: pd.Series) -> str:
+    inst = row["Institute"].split("(")[0].strip()
+    prog = row["Academic Program Name"]
+    if len(inst) > 24:
+        inst = inst[:21] + "…"
+    if len(prog) > 30:
+        prog = prog[:27] + "…"
+    return f"{inst} · {prog}"
+
+
 def _build_trajectory_fig(
     df: pd.DataFrame,
     round_cols: list[str],
@@ -92,11 +102,12 @@ def _build_trajectory_fig(
         xs   = [r      for r in round_cols if isinstance(row.get(r), (int, float))]
         cat  = row["Category"]
         name = _slot_label(row)
+        legend_name = _slot_legend_label(row)
 
         fig.add_trace(go.Scatter(
             x=xs, y=ys,
             mode="lines+markers",
-            name=name,
+            name=legend_name,
             line=dict(color=CAT_COLOR[cat], width=2),
             marker=dict(size=8),
             hovertemplate=(
@@ -134,13 +145,22 @@ def _build_trajectory_fig(
             tickfont=dict(color=_fg),
             linecolor=_fg,
         ),
-        legend=dict(orientation="v", x=1.02, y=1, font=dict(size=11, color=_fg),
-                    bgcolor="rgba(255,255,255,0.85)", bordercolor="#cccccc", borderwidth=1),
         height=540,
         hovermode="x unified",
         plot_bgcolor="white",
         paper_bgcolor="white",
-        margin=dict(l=60, r=20, t=60, b=60),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.20,
+            xanchor="left",
+            x=0,
+            font=dict(size=11, color=_fg),
+            bgcolor="rgba(255,255,255,0.85)",
+            bordercolor="#cccccc",
+            borderwidth=1,
+        ),
+        margin=dict(l=60, r=20, t=60, b=170),
     )
     return fig
 
@@ -380,10 +400,17 @@ with tab_table:
 # Trajectory plot
 with tab_plot:
     st.markdown(
-        "Select colleges from your results to compare their predicted "
-        "closing-rank trajectories across rounds. "
-        "The dashed blue line marks **your rank**. Traces below it indicate "
-        "rounds where you would be eligible for that seat. Please use full screen view of the graph for better visualization."
+        """
+        <div style="padding:0.75rem 1rem;border:1px solid #d0d0d0;border-radius:0.5rem;
+                    background:rgba(255,255,255,0.04);margin-bottom:0.75rem;">
+        <ul style="margin:0;padding-left:1.2rem;">
+            <li>Select colleges from your results to compare their predicted closing-rank trajectories across rounds.</li>
+            <li>The dashed blue line marks <strong>your rank</strong>. Traces below the line indicate rounds where you would be eligible for that seat.</li>
+            <li>Use <strong>full-screen</strong> view for the cleanest chart when plotting many institutes.</li>
+        </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     df["_label"] = df.apply(_slot_label, axis=1)
