@@ -316,6 +316,23 @@ tab_table, tab_plot = st.tabs(["Results Table", "Trajectory Plot"])
 
 # Results table
 with tab_table:
+    program_options = sorted(df["Academic Program Name"].dropna().unique().tolist())
+    selected_programs = st.multiselect(
+        "Filter by Academic Program Name",
+        options=program_options,
+        help="Type to search and select one or more branches. Leave empty to show all.",
+        placeholder="e.g. Mechanical Engineering (4 Years, Bachelor of Technology)",
+    )
+
+    table_df = (
+        df[df["Academic Program Name"].isin(selected_programs)].copy()
+        if selected_programs
+        else df
+    )
+
+    if table_df.empty:
+        st.info("No rows match the selected program filter.")
+
     display_cols = (
         ["Institute", "Academic Program Name"]
         + round_cols
@@ -329,7 +346,7 @@ with tab_table:
     }
 
     for cat in ["safe", "match", "reach"]:
-        subset = df[df["Category"] == cat]
+        subset = table_df[table_df["Category"] == cat]
         if subset.empty:
             continue
         color = CAT_COLOR[cat]
