@@ -124,7 +124,8 @@ def cmd_predict(args):
     pd.set_option("display.width", 0)
 
     round_cols   = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
-    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred", "Years"]
+    seat_col     = ["Seats"] if "Seats" in results.columns else []
+    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred", "Years"] + seat_col
 
     for cat in ["safe", "match", "reach"]:
         subset = results[results["Category"] == cat]

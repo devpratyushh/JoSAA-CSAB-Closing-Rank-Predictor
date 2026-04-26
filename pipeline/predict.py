@@ -6,22 +6,81 @@ with predicted closing ranks for every round (R1 … R6).
 
 Output columns:
     Institute | Academic Program Name | Quota | Seat Type | Gender |
-    R1 | R2 | R3 | R4 | R5 | R6 | Final Pred | Category
+    R1 | R2 | R3 | R4 | R5 | R6 | Final Pred | Years | Seats | Category
 
 Category (based on Final Pred vs student rank):
     safe   → rank ≤ 80 % of predicted final close
     match  → 80 % < rank ≤ 100 %
     reach  → 100 % < rank ≤ 120 %  (closing ranks shift year-to-year)
+
+Seats column: current-year seat count from seat_matrix.csv (if available).
+    A dash ("-") means the slot was not found in the seat matrix.
 """
 
+import os
 import pickle
 import pandas as pd
 from .config import MODEL_PATH, PREDICT_YEAR, ALL_ROUNDS
+
+SEAT_MATRIX_PATH = os.path.join(os.path.dirname(__file__), "..", "seat_matrix.csv")
 
 
 def load_model(path: str = MODEL_PATH) -> dict:
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+def load_seat_matrix(path: str = SEAT_MATRIX_PATH) -> dict:
+    """
+    Load seat_matrix.csv and return a lookup dict:
+        (institute, program, quota, seat_type, gender) -> seats (int)
+
+    The seat matrix uses granular state names for NIT HS/OS quotas
+    (e.g. "ANDHRA PRADESH" for home-state, "Other than ANDHRA PRADESH" for
+    other-state). We aggregate these back to the coarse pipeline codes:
+        AI              → "AI"
+        <state name>    → "HS"   (home-state rows, not "Other than ...")
+        Other than ...  → "OS"   (other-state rows)
+        GO / JK / LA   → kept as-is
+    Returns an empty dict if the file doesn't exist.
+    """
+    if not os.path.exists(path):
+        return {}
+
+    SPECIAL = {"AI", "GO", "JK", "LA"}
+
+    df = pd.read_csv(path)
+    df["_quota_norm"] = df["Quota"].apply(_coarse_quota)
+
+    agg = (
+        df.groupby(["Institute", "Program", "_quota_norm", "Seat Type", "Gender"],
+                   sort=False)["Seats"]
+        .sum()
+        .reset_index()
+    )
+
+    return {
+        (
+            str(r["Institute"]).strip(),
+            str(r["Program"]).strip(),
+            str(r["_quota_norm"]).strip(),
+            str(r["Seat Type"]).strip(),
+            str(r["Gender"]).strip(),
+        ): int(r["Seats"])
+        for _, r in agg.iterrows()
+    }
+
+
+def _coarse_quota(raw: str) -> str:
+    """Map fine-grained seat-matrix quota strings to pipeline quota codes."""
+    s = str(raw).strip()
+    upper = s.upper()
+    if upper in {"AI", "GO", "JK", "LA"}:
+        return upper
+    if s.lower().startswith("other than"):
+        return "OS"
+    # Remaining rows are state-specific home-state quotas → HS
+    return "HS"
 
 
 def predict(
@@ -36,14 +95,17 @@ def predict(
     include_reach:   bool = True,
     safe_threshold:  float = 0.80,
     reach_threshold: float = 1.20,
+    seat_matrix:     dict | None = None,  # (inst,prog,quota,st,gender) -> seats
 ) -> pd.DataFrame:
     if model is None:
         model = load_model()
 
-    slots     = model["slots"]
-    slot_cols = model["slot_cols"]
+    # Load seat matrix lazily if not provided
+    if seat_matrix is None:
+        seat_matrix = load_seat_matrix()
 
-    # slot_cols order: Institute, Program, Quota, SeatType, Gender, ExamType
+    slots = model["slots"]
+
     results = []
 
     for key, slot_model in slots.items():
@@ -58,7 +120,6 @@ def predict(
 
         # Final round = highest round this slot was seen in
         final_r = slot_model.max_round
-        # Use highest available predicted round as the "final" benchmark
         pred_final = round_preds.get(final_r) or round_preds[max(round_preds)]
 
         ratio = rank / pred_final
@@ -70,6 +131,8 @@ def predict(
             category = "reach"
         else:
             continue
+
+        seats = seat_matrix.get((inst, prog, q, st, g), "-")
 
         row = {
             "Institute":             inst,
@@ -83,6 +146,7 @@ def predict(
 
         row["Final Pred"] = pred_final
         row["Years"]      = slot_model.n_years
+        row["Seats"]      = seats
         row["Category"]   = category
         results.append(row)
 

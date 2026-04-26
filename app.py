@@ -294,7 +294,7 @@ c4.metric("Total", len(df))
 
 export_cols = [
     "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
-    *round_cols, "Final Pred", "Years",
+    *round_cols, "Final Pred", "Years", "Seats",
 ]
 export_df = df[[c for c in export_cols if c in df.columns]].copy()
 csv_data = export_df.to_csv(index=False).encode("utf-8")
@@ -365,15 +365,19 @@ with tab_table:
     if table_df.empty:
         st.info("No rows match the selected program/institute filter.")
 
+    has_seats = "Seats" in df.columns and df["Seats"].ne("-").any()
     display_cols = (
         ["Institute", "Academic Program Name"]
         + round_cols
         + ["Final Pred", "Years"]
+        + (["Seats"] if has_seats else [])
     )
     col_cfg = {
         "Final Pred": st.column_config.NumberColumn("Final", format="%d"),
         "Years":      st.column_config.NumberColumn("Yrs",
                           help="Years of historical data for this slot"),
+        "Seats":      st.column_config.NumberColumn("Seats",
+                          help="Total seats available in this slot for the prediction year"),
         **{r: st.column_config.NumberColumn(r, format="%d") for r in round_cols},
     }
 
