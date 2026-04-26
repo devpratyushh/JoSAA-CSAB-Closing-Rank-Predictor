@@ -60,6 +60,30 @@ def cmd_backtest(args):
              trend_model=args.trend_model)
 
 
+def cmd_tune(args):
+    import pickle
+    from pipeline.evaluate import tune_ensemble_weight
+
+    cfg = _resolve_source(args.source)
+    result = tune_ensemble_weight(
+        cfg["csv"],
+        val_year    = args.val_year,
+        rounds      = cfg["rounds"],
+        trend_model = args.trend_model,
+    )
+    best_w = result["best_w"]
+
+    if args.save and os.path.exists(cfg["model_path"]):
+        with open(cfg["model_path"], "rb") as f:
+            model = pickle.load(f)
+        model["ensemble_weight"] = best_w
+        with open(cfg["model_path"], "wb") as f:
+            pickle.dump(model, f)
+        print(f"\nSaved ensemble_weight={best_w} into {cfg['model_path']}")
+    elif args.save:
+        print(f"\nModel not found at {cfg['model_path']}: run train first, then tune --save.")
+
+
 def cmd_predict(args):
     from pipeline.predict import predict, load_model
 
@@ -162,8 +186,18 @@ def main():
     pr.add_argument("--no-reach",  action="store_true",
                     help="Exclude reach colleges from output")
 
+    # tune
+    tn = sub.add_parser("tune", help="Find optimal ensemble weight w via held-out validation")
+    tn.add_argument("--source",     **source_kwargs)
+    tn.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
+    tn.add_argument("--val-year",   dest="val_year", type=int, default=None,
+                    help="Validation year (default: most recent year in CSV)")
+    tn.add_argument("--save",       action="store_true",
+                    help="Write best w into the model pickle for automatic use")
+
     args = parser.parse_args()
-    {"train": cmd_train, "backtest": cmd_backtest, "predict": cmd_predict}[args.cmd](args)
+    {"train": cmd_train, "backtest": cmd_backtest,
+     "predict": cmd_predict, "tune": cmd_tune}[args.cmd](args)
 
 
 if __name__ == "__main__":

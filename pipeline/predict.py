@@ -52,8 +52,9 @@ def predict(
         if et != exam_type or q != quota or st != seat_type or g != gender:
             continue
 
-        # Predict all rounds
-        round_preds = slot_model.predict_all_rounds(year, rounds)
+        # Predict all rounds (use per-model tuned weight if available)
+        w = model.get("ensemble_weight")
+        round_preds = slot_model.predict_all_rounds(year, rounds, w=w)
 
         # Final round = highest round this slot was seen in
         final_r = slot_model.max_round

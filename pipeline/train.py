@@ -163,10 +163,14 @@ class SlotModel:
 
         self.round_ratios = {r: float(np.mean(v)) for r, v in ratio_accum.items()}
 
-    def predict_round(self, round_no: int, year: int) -> float:
+    def predict_round(self, round_no: int, year: int,
+                      w: float | None = None) -> float:
         """
         Ensemble prediction for a single round.
+        w: override for ENSEMBLE_WEIGHT; pass explicitly during weight tuning.
         """
+        ew = ENSEMBLE_WEIGHT if w is None else w
+
         # Signal 1: direct year trend for this round
         if round_no in self.round_year_models:
             direct = float(self.round_year_models[round_no].predict([[year]])[0])
@@ -186,12 +190,13 @@ class SlotModel:
                 self.round_ratios.get(self.max_round, 1.0))
         via_ratio = pred_final * ratio
 
-        pred = ENSEMBLE_WEIGHT * direct + (1 - ENSEMBLE_WEIGHT) * via_ratio
+        pred = ew * direct + (1 - ew) * via_ratio
         return max(1.0, pred)
 
-    def predict_all_rounds(self, year: int, rounds: list[int]) -> dict[int, int]:
+    def predict_all_rounds(self, year: int, rounds: list[int],
+                           w: float | None = None) -> dict[int, int]:
         """Return {round_no: predicted_close_rank} for each requested round."""
-        return {r: int(round(self.predict_round(r, year))) for r in rounds}
+        return {r: int(round(self.predict_round(r, year, w=w))) for r in rounds}
 
 
 def train(csv_path: str, model_path: str = MODEL_PATH,

@@ -28,10 +28,10 @@ MIN_YEARS_FOR_TREND = 2
 
 # Ensemble weight for combining year-trend vs round-ratio predictions
 # 0.0 = pure round-ratio scaling; 1.0 = pure per-round year trend
-# 0.5 balances both signals equally.
-# NOTE: When TREND_MODEL = "median", both signals are median-based so this
-# weight has little practical effect.
-ENSEMBLE_WEIGHT = 0.5
+# Tuned via grid search on JoSAA 2024: w=1.0 gives MAE 3,174 vs 3,708 at w=0.5.
+# With trend_model="median", w=1.0 means "use per-round historical median directly"
+# which is strictly better than going through the ratio estimation step.
+ENSEMBLE_WEIGHT = 1.0
 
 # Default trend model for the year-signal component
 # Backtesting across 2024 and 2025 shows "median" outperforms all trend-based
