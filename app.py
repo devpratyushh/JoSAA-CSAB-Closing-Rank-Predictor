@@ -173,7 +173,7 @@ with st.sidebar:
         value=10_000, step=100,
     )
 
-    quota = st.selectbox("Quota", QUOTAS[source])
+    quota = st.selectbox("Quota", QUOTAS[source], help="JoSAA quotas include AI (All India), HS (Home State), OS (Other State), GO (Goa), JK (Jammu & Kashmir), LA (Ladakh). CSAB quotas include AI, HS, OS, JK, LA.")
     seat_type = st.selectbox("Seat Type", SEAT_TYPES)
 
     gender_raw = st.radio("Gender", ["Gender-Neutral", "Female-only"])
@@ -308,8 +308,8 @@ with tab_plot:
     st.markdown(
         "Select colleges from your results to compare their predicted "
         "closing-rank trajectories across rounds. "
-        "The dashed blue line marks **your rank**; traces below it indicate "
-        "rounds where you would be eligible for that seat."
+        "The dashed blue line marks **your rank**. Traces below it indicate "
+        "rounds where you would be eligible for that seat. Please use full screen view of the graph for better visualization."
     )
 
     df["_label"] = df.apply(_slot_label, axis=1)
