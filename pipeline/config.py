@@ -21,7 +21,7 @@ COL_EXAM_TYPE   = "Exam Type"   # "advanced" | "mains"
 IIT_KEYWORDS = ["indian institute of technology", "iit "]
 
 # Prediction target year (set to next year before running predict) 
-PREDICT_YEAR = 2025
+PREDICT_YEAR = 2026
 
 # Minimum historical data points to fit a trend model per combination
 MIN_YEARS_FOR_TREND = 2
