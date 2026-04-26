@@ -272,6 +272,46 @@ c2.metric("Match", counts.get("match", 0))
 c3.metric("Reach", counts.get("reach", 0))
 c4.metric("Total", len(df))
 
+export_cols = [
+    "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
+    *round_cols, "Final Pred", "Years",
+]
+export_df = df[[c for c in export_cols if c in df.columns]].copy()
+csv_data = export_df.to_csv(index=False).encode("utf-8")
+
+with st.expander("Export results", expanded=False):
+    selected_export_cats = st.multiselect(
+        "Categories to include in filtered export",
+        options=["safe", "match", "reach"],
+        default=["safe", "match"],
+        help="Choose one or more categories for the filtered CSV download.",
+    )
+
+    e1, e2 = st.columns(2)
+    with e1:
+        st.download_button(
+            "Export all categories as CSV",
+            data=csv_data,
+            file_name=f"{source}_{exam_type}_rank_{student_rank}_predictions.csv",
+            mime="text/csv",
+            width="stretch",
+        )
+
+    with e2:
+        filtered_export_df = export_df[export_df["Category"].isin(selected_export_cats)]
+        filtered_csv_data = filtered_export_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Export selected categories as CSV",
+            data=filtered_csv_data,
+            file_name=(
+                f"{source}_{exam_type}_rank_{student_rank}_"
+                f"{'-'.join(selected_export_cats) if selected_export_cats else 'none'}_predictions.csv"
+            ),
+            mime="text/csv",
+            width="stretch",
+            disabled=not selected_export_cats,
+        )
+
 tab_table, tab_plot = st.tabs(["Results Table", "Trajectory Plot"])
 
 # Results table
