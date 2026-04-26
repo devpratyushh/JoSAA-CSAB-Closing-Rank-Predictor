@@ -314,10 +314,10 @@ with tab_plot:
 
     df["_label"] = df.apply(_slot_label, axis=1)
 
-    # Default: top 6 safe+match options
+    # Default: top 3 safe+match options
     default_labels = (
         df[df["Category"].isin(["safe", "match"])]
-        .head(6)["_label"]
+        .head(3)["_label"]
         .tolist()
     )
 
