@@ -1,15 +1,15 @@
-"""
+﻿"""
 Train the ensemble model that predicts closing rank for every round.
 
 Two signals per slot (institute x program x quota x seat_type x gender):
 
   1. Year-trend per round
-       For each round r, fit LinearRegression(year → closing_rank).
+       For each round r, fit LinearRegression(year -> closing_rank).
        Captures how the cutoff for *that specific round* has drifted year-over-year.
 
   2. Round-progression ratios
        For each year, record ratio[r] = close[r] / close[last_round_in_year].
-       Average ratios across years to learn the typical R1→R2→...→Rfinal shape.
+       Average ratios across years to learn the typical R1->R2->...->Rfinal shape.
        At prediction time: predicted_close[r] = predicted_final_close x ratio[r].
 
 Ensemble prediction for round r in target year Y:
@@ -78,7 +78,7 @@ class SlotModel:
         if trend_model not in TREND_MODELS:
             raise ValueError(f"trend_model must be one of {TREND_MODELS}")
         self.trend_model = trend_model
-        # {round_no: sklearn estimator}  - year → close_rank for that round
+        # {round_no: sklearn estimator}  - year -> close_rank for that round
         self.round_year_models: dict[int, object] = {}
         # {round_no: float}  - close[r] / close[last_round], averaged across years
         self.round_ratios:      dict[int, float] = {}
@@ -219,7 +219,7 @@ def train(csv_path: str, model_path: str = MODEL_PATH,
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
-    print(f"Trained {len(slots):,} slot models → {model_path}")
+    print(f"Trained {len(slots):,} slot models -> {model_path}")
     return model
 
 

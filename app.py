@@ -365,7 +365,7 @@ with tab_table:
     if table_df.empty:
         st.info("No rows match the selected program/institute filter.")
 
-    has_seats = "Seats" in df.columns and df["Seats"].ne("-").any()
+    has_seats = "Seats" in df.columns and df["Seats"].notna().any()
     display_cols = (
         ["Institute", "Academic Program Name"]
         + round_cols

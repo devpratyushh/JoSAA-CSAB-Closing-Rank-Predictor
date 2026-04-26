@@ -34,10 +34,9 @@ MIN_YEARS_FOR_TREND = 2
 ENSEMBLE_WEIGHT = 1.0
 
 # Default trend model for the year-signal component
-# Backtesting across 2024 and 2025 shows "median" outperforms all trend-based
-# models by 25-33%: JoSAA closing ranks mean-revert to historical averages
-# rather than following linear trends.
-DEFAULT_TREND_MODEL = "median"
+# Multi-year validation (2022-2025) shows SVR RBF outperforms Median every year
+# by 13-19% (avg MAE 2,742 vs 3,259) via kernel-induced mean reversion.
+DEFAULT_TREND_MODEL = "svr_rbf"
 
 # Rounds to predict 
 JOSAA_ROUNDS = [1, 2, 3, 4, 5, 6]

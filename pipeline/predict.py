@@ -132,7 +132,7 @@ def predict(
         else:
             continue
 
-        seats = seat_matrix.get((inst, prog, q, st, g), "-")
+        seats = seat_matrix.get((inst, prog, q, st, g))
 
         row = {
             "Institute":             inst,

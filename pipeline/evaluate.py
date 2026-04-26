@@ -22,12 +22,13 @@ def backtest(
     rounds:      list[int] | None = None,
     trend_model: str = DEFAULT_TREND_MODEL,
     quiet:       bool = False,
+    _df:         pd.DataFrame | None = None,
 ) -> dict:
     def log(*args, **kwargs):
         if not quiet:
             print(*args, **kwargs)
 
-    df = load(csv_path)
+    df = _df if _df is not None else load(csv_path)
     all_years = sorted(df[COL_YEAR].unique())
 
     if test_year is None:

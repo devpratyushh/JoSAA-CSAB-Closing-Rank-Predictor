@@ -37,7 +37,7 @@ import os
 import sys
 import pandas as pd
 
-from pipeline.config import SOURCES, MODEL_DIR
+from pipeline.config import SOURCES, MODEL_DIR, DEFAULT_TREND_MODEL
 
 
 def _resolve_source(source: str) -> dict:
@@ -155,9 +155,10 @@ def main():
         help="Data source (default: josaa)",
     )
     trend_kwargs = dict(
-        type=str, default="median",
-        choices=["ols", "theil_sen", "weighted_ols", "median"],
-        help="Year-trend model (default: median)",
+        type=str, default=DEFAULT_TREND_MODEL,
+        choices=["ols", "theil_sen", "weighted_ols", "median",
+                 "ridge", "svr_linear", "svr_rbf"],
+        help=f"Year-trend model (default: {DEFAULT_TREND_MODEL})",
     )
 
     # train
