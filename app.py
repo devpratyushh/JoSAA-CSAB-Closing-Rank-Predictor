@@ -49,7 +49,14 @@ def load_model_cached(source: str):
     cfg  = SOURCES[source]
     path = os.path.join(MODEL_DIR, cfg["model"])
     if not os.path.exists(path):
-        return None, path
+        # Auto-train from CSV if available (e.g. first deploy without pre-built pkl)
+        csv_path = cfg["csv"]
+        if os.path.exists(csv_path):
+            os.makedirs(MODEL_DIR, exist_ok=True)
+            from pipeline.train import train
+            train(csv_path, model_path=path)
+        else:
+            return None, path
     with open(path, "rb") as f:
         return pickle.load(f), path
 
@@ -199,8 +206,12 @@ if predict_btn:
     model, model_path = load_model_cached(source)
     if model is None:
         st.error(
-            f"**Model not found:** `{model_path}`\n\n"
-            f"Train it first:  `python predict_cli.py train --source {source}`"
+            f"**Model and data not found.**\n\n"
+            f"The app needs either:\n"
+            f"- `models/{source}_model.pkl` (pre-trained, commit to the repo), **or**\n"
+            f"- `{source}_ranks.csv` (raw data, app will auto-train on first load)\n\n"
+            f"Run locally: `python predict_cli.py train --source {source}` "
+            f"then commit `models/{source}_model.pkl`."
         )
         st.stop()
 
