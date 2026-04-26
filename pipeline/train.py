@@ -163,6 +163,41 @@ class SlotModel:
 
         self.round_ratios = {r: float(np.mean(v)) for r, v in ratio_accum.items()}
 
+        # Historical absolute deviations from the median per round.
+        # Used by predict_interval() to build per-slot prediction intervals.
+        # Sorted ascending so quantile lookup is O(1).
+        self.round_abs_deviations: dict[int, list[float]] = {}
+        for r, grp in slot_df.groupby(COL_ROUND):
+            r = int(r)
+            closes = grp[COL_CLOSE_RANK].values.astype(float)
+            med = float(np.median(closes))
+            self.round_abs_deviations[r] = sorted(float(abs(c - med)) for c in closes)
+
+    def predict_interval(self, round_no: int, year: int,
+                         coverage: float = 0.90) -> tuple[float, float]:
+        """
+        Prediction interval at the requested coverage level.
+
+        Uses the sorted absolute deviations of historical closing ranks from
+        their per-round median as a non-parametric proxy for future prediction
+        uncertainty.  The coverage quantile of those deviations is the
+        half-width: lower = pred - half_width, upper = pred + half_width.
+
+        Note: this is an in-sample (optimistic) calibration; the true
+        leave-one-out coverage may be lower, especially for volatile slots.
+        Falls back to ±20 % of the prediction when fewer than 2 observations
+        are available.
+        """
+        pred = self.predict_round(round_no, year)
+        devs = self.round_abs_deviations.get(round_no, [])
+        if len(devs) >= 2:
+            n      = len(devs)
+            q_idx  = min(int(np.ceil(n * coverage)) - 1, n - 1)
+            half_w = devs[q_idx]
+        else:
+            half_w = 0.20 * pred
+        return max(1.0, pred - half_w), pred + half_w
+
     def predict_round(self, round_no: int, year: int,
                       w: float | None = None) -> float:
         """

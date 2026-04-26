@@ -113,6 +113,7 @@ def cmd_predict(args):
         include_reach   = not args.no_reach,
         safe_threshold  = cfg["safe_threshold"],
         reach_threshold = cfg["reach_threshold"],
+        coverage        = args.coverage,
     )
 
     if results.empty:
@@ -123,9 +124,17 @@ def cmd_predict(args):
     pd.set_option("display.max_colwidth", 55)
     pd.set_option("display.width", 0)
 
-    round_cols   = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
-    seat_col     = ["Seats"] if "Seats" in results.columns else []
-    display_cols = ["Institute", "Academic Program Name"] + round_cols + ["Final Pred", "Years"] + seat_col
+    round_cols    = [c for c in results.columns if c.startswith("R") and c[1:].isdigit()]
+    interval_cols = ["Lower", "Upper"] if "Lower" in results.columns else []
+    seat_col      = ["Seats"] if "Seats" in results.columns else []
+    display_cols  = (["Institute", "Academic Program Name"] + round_cols
+                     + ["Final Pred"] + interval_cols + ["Years"] + seat_col)
+
+    if interval_cols:
+        cov_pct = int(args.coverage * 100)
+        print(f"\nPrediction intervals at {cov_pct}% coverage  "
+              f"(Safe: rank <= Lower  |  Match: Lower < rank <= Final  |  "
+              f"Reach: Final < rank <= Upper)")
 
     for cat in ["safe", "match", "reach"]:
         subset = results[results["Category"] == cat]
@@ -187,6 +196,10 @@ def main():
                     help="Gender-Neutral (default) or Female")
     pr.add_argument("--no-reach",  action="store_true",
                     help="Exclude reach colleges from output")
+    pr.add_argument("--coverage",  type=float, default=0.90,
+                    metavar="LEVEL",
+                    help="Prediction interval coverage (0.80/0.85/0.90/0.95, default 0.90). "
+                         "Determines Safe/Match/Reach boundaries based on historical variability.")
 
     # tune
     tn = sub.add_parser("tune", help="Find optimal ensemble weight w via held-out validation")

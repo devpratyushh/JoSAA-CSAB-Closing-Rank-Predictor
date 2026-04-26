@@ -210,11 +210,25 @@ with st.sidebar:
 
     include_reach = st.checkbox("Include reach colleges", value=True)
 
+    coverage = st.select_slider(
+        "Prediction interval coverage",
+        options=[0.80, 0.85, 0.90, 0.95],
+        value=0.90,
+        format_func=lambda x: f"{int(x*100)}%",
+        help=(
+            "Confidence level for the prediction interval. "
+            "A 90% interval means the historical closing rank fell within "
+            "[Lower, Upper] in ~90% of past years. "
+            "Safe / Match / Reach categories are based on where your rank "
+            "falls relative to this interval."
+        ),
+    )
+
     st.markdown("---")
     predict_btn = st.button("Predict", width="stretch", type="primary")
 
     # Clear cached results when any input changes
-    current_inputs = (source, exam_type, rank, quota, seat_type, gender, include_reach)
+    current_inputs = (source, exam_type, rank, quota, seat_type, gender, include_reach, coverage)
     if st.session_state.get("last_inputs") != current_inputs:
         st.session_state.pop("results_df", None)
         st.session_state.pop("last_rank", None)
@@ -252,6 +266,7 @@ if predict_btn:
             include_reach   = include_reach,
             safe_threshold  = cfg["safe_threshold"],
             reach_threshold = cfg["reach_threshold"],
+            coverage        = coverage,
         )
 
     st.session_state["results_df"]  = df
@@ -294,7 +309,7 @@ c4.metric("Total", len(df))
 
 export_cols = [
     "Category", "Institute", "Academic Program Name", "Quota", "Seat Type", "Gender",
-    *round_cols, "Final Pred", "Years", "Seats",
+    *round_cols, "Final Pred", "Lower", "Upper", "Years", "Seats",
 ]
 export_df = df[[c for c in export_cols if c in df.columns]].copy()
 csv_data = export_df.to_csv(index=False).encode("utf-8")
@@ -365,15 +380,29 @@ with tab_table:
     if table_df.empty:
         st.info("No rows match the selected program/institute filter.")
 
-    has_seats = "Seats" in df.columns and df["Seats"].notna().any()
+    has_seats     = "Seats" in df.columns and df["Seats"].notna().any()
+    has_intervals = "Lower" in df.columns and "Upper" in df.columns
     display_cols = (
         ["Institute", "Academic Program Name"]
         + round_cols
-        + ["Final Pred", "Years"]
+        + ["Final Pred"]
+        + (["Lower", "Upper"] if has_intervals else [])
+        + ["Years"]
         + (["Seats"] if has_seats else [])
     )
+    cov_pct = int(st.session_state.get("last_inputs", (None,)*8)[-1] * 100) if has_intervals else 90
     col_cfg = {
         "Final Pred": st.column_config.NumberColumn("Final", format="%d"),
+        "Lower":      st.column_config.NumberColumn(
+                          f"Lower ({cov_pct}%)",
+                          format="%d",
+                          help=f"Lower bound of the {cov_pct}% prediction interval. "
+                               "Your rank below this means the slot is Safe."),
+        "Upper":      st.column_config.NumberColumn(
+                          f"Upper ({cov_pct}%)",
+                          format="%d",
+                          help=f"Upper bound of the {cov_pct}% prediction interval. "
+                               "Your rank above this means the slot is out of reach."),
         "Years":      st.column_config.NumberColumn("Yrs",
                           help="Years of historical data for this slot"),
         "Seats":      st.column_config.NumberColumn("Seats",

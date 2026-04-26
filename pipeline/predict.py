@@ -6,15 +6,18 @@ with predicted closing ranks for every round (R1 … R6).
 
 Output columns:
     Institute | Academic Program Name | Quota | Seat Type | Gender |
-    R1 | R2 | R3 | R4 | R5 | R6 | Final Pred | Years | Seats | Category
+    R1 | R2 | R3 | R4 | R5 | R6 | Final Pred | Lower | Upper | Years | Seats | Category
 
-Category (based on Final Pred vs student rank):
-    safe   → rank ≤ 80 % of predicted final close
-    match  → 80 % < rank ≤ 100 %
-    reach  → 100 % < rank ≤ 120 %  (closing ranks shift year-to-year)
+Category (based on prediction interval vs student rank):
+    safe   → rank ≤ lower bound of interval  (comfortably within range)
+    match  → lower < rank ≤ Final Pred
+    reach  → Final Pred < rank ≤ upper bound
+
+Lower / Upper: per-slot prediction interval at the requested coverage level
+    (default 90 %), derived from historical closing-rank variability.
+    Slots with fewer than 2 data points fall back to ±20 % of Final Pred.
 
 Seats column: current-year seat count from seat_matrix.csv (if available).
-    A dash ("-") means the slot was not found in the seat matrix.
 """
 
 import os
@@ -93,9 +96,10 @@ def predict(
     year:            int = PREDICT_YEAR,
     rounds:          list[int] = ALL_ROUNDS,
     include_reach:   bool = True,
-    safe_threshold:  float = 0.80,
-    reach_threshold: float = 1.20,
+    safe_threshold:  float = 0.80,   # fallback when interval unavailable
+    reach_threshold: float = 1.20,   # fallback when interval unavailable
     seat_matrix:     dict | None = None,  # (inst,prog,quota,st,gender) -> seats
+    coverage:        float = 0.90,   # prediction interval coverage level
 ) -> pd.DataFrame:
     if model is None:
         model = load_model()
@@ -122,12 +126,20 @@ def predict(
         final_r = slot_model.max_round
         pred_final = round_preds.get(final_r) or round_preds[max(round_preds)]
 
-        ratio = rank / pred_final
-        if ratio <= safe_threshold:
+        # Prediction interval for the final round
+        has_intervals = hasattr(slot_model, "round_abs_deviations")
+        if has_intervals:
+            lower, upper = slot_model.predict_interval(final_r, year, coverage)
+        else:
+            # Old model pkl without interval support, fall back to fixed thresholds
+            lower = safe_threshold * pred_final
+            upper = reach_threshold * pred_final
+
+        if rank <= lower:
             category = "safe"
-        elif ratio <= 1.0:
+        elif rank <= pred_final:
             category = "match"
-        elif ratio <= reach_threshold and include_reach:
+        elif rank <= upper and include_reach:
             category = "reach"
         else:
             continue
@@ -145,6 +157,8 @@ def predict(
             row[f"R{r}"] = round_preds.get(r, "-")
 
         row["Final Pred"] = pred_final
+        row["Lower"]      = int(round(lower))
+        row["Upper"]      = int(round(upper))
         row["Years"]      = slot_model.n_years
         row["Seats"]      = seats
         row["Category"]   = category
