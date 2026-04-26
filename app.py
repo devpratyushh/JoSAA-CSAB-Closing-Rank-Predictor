@@ -171,6 +171,11 @@ with st.sidebar:
         "Your rank",
         min_value=1, max_value=1_000_000,
         value=10_000, step=100,
+        help=(
+            "Enter the rank corresponding to your selected Seat Type. "
+            "Use CRL for OPEN / OPEN (PwD), and category rank for "
+            "OBC-NCL / SC / ST / EWS (including PwD variants)."
+        ),
     )
 
     quota = st.selectbox("Quota", QUOTAS[source], help="JoSAA quotas include AI (All India), HS (Home State), OS (Other State), GO (Goa), JK (Jammu & Kashmir), LA (Ladakh). CSAB quotas include AI, HS, OS, JK, LA.")
