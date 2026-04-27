@@ -9,11 +9,51 @@ For each slot present in the test year:
 
 import numpy as np
 import pandas as pd
+from collections import defaultdict
 from sklearn.metrics import mean_absolute_error
 
 from .config import COL_YEAR, COL_ROUND, COL_CLOSE_RANK, ALL_ROUNDS, DEFAULT_TREND_MODEL
 from .loader import load
 from .train import SLOT_COLS, SlotModel
+
+# Tier ordering for consistent display
+_TIER_ORDER = ["IIT", "NIT", "IIIT", "GFTI"]
+_EXAM_ORDER = ["advanced", "mains"]
+
+
+def _get_tier(institute: str, exam_type: str) -> str:
+    """Classify a slot into IIT / NIT / IIIT / GFTI based on exam type and name."""
+    if exam_type == "advanced":
+        return "IIT"
+    name = institute.lower()
+    if "national institute of technology" in name:
+        return "NIT"
+    if "indian institute of information technology" in name:
+        return "IIIT"
+    return "GFTI"
+
+
+def _strata_mae_table(strata_abs_errors: dict, rounds: list[int],
+                      dim: str, order: list[str]) -> pd.DataFrame:
+    """Build a DataFrame of MAE by stratum x round for one stratification dimension."""
+    rows = []
+    for stratum in order:
+        errs_by_round = strata_abs_errors.get(stratum, {})
+        all_errs: list[float] = []
+        row: dict = {"Stratum": stratum}
+        for r in rounds:
+            errs = errs_by_round.get(r, [])
+            if errs:
+                row[f"R{r}"] = round(float(np.mean(errs)), 1)
+                row[f"N{r}"] = len(errs)
+                all_errs.extend(errs)
+            else:
+                row[f"R{r}"] = float("nan")
+                row[f"N{r}"] = 0
+        row["Overall MAE"] = round(float(np.mean(all_errs)), 1) if all_errs else float("nan")
+        row["N"]           = len(all_errs)
+        rows.append(row)
+    return pd.DataFrame(rows).set_index("Stratum")
 
 
 def backtest(
@@ -21,8 +61,10 @@ def backtest(
     test_year:   int | None  = None,
     rounds:      list[int] | None = None,
     trend_model: str = DEFAULT_TREND_MODEL,
+    normalize:   bool = False,
     quiet:       bool = False,
     _df:         pd.DataFrame | None = None,
+    stratify:    bool = True,
 ) -> dict:
     def log(*args, **kwargs):
         if not quiet:
@@ -38,7 +80,8 @@ def backtest(
         rounds = ALL_ROUNDS
 
     train_years = [y for y in all_years if y < test_year]
-    log(f"Backtest  |  train: {train_years}  |  test: {test_year}  |  trend={trend_model}")
+    log(f"Backtest  |  train: {train_years}  |  test: {test_year}  |  "
+        f"trend={trend_model}  |  normalize={normalize}")
 
     train_df = df[df[COL_YEAR].isin(train_years)]
     test_df  = df[df[COL_YEAR] == test_year]
@@ -52,12 +95,22 @@ def backtest(
 
     round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in rounds}
 
+    # strata_abs_errors["exam_type"]["advanced"][r] = [abs_err, ...]
+    # strata_abs_errors["tier"]["NIT"][r] = [abs_err, ...]
+    strata_abs_errors: dict[str, dict[str, dict[int, list]]] = {
+        "exam_type": defaultdict(lambda: defaultdict(list)),
+        "tier":      defaultdict(lambda: defaultdict(list)),
+    }
+
     for i, (key, test_grp) in enumerate(test_df.groupby(SLOT_COLS, sort=False)):
         train_grp = train_groups.get(key)
         if train_grp is None:
             continue
 
-        m = SlotModel(trend_model=trend_model)
+        inst, _prog, _q, _st, _g, exam_type = key
+        tier = _get_tier(inst, exam_type)
+
+        m = SlotModel(trend_model=trend_model, normalize=normalize)
         m.fit(train_grp)
         preds = m.predict_all_rounds(test_year, rounds)
 
@@ -65,8 +118,14 @@ def backtest(
         for r in rounds:
             if r not in test_by_round or r not in preds:
                 continue
-            round_errors[r][0].append(float(test_by_round[r]))
-            round_errors[r][1].append(float(preds[r]))
+            act  = float(test_by_round[r])
+            pred = float(preds[r])
+            round_errors[r][0].append(act)
+            round_errors[r][1].append(pred)
+            if stratify:
+                abs_err = abs(act - pred)
+                strata_abs_errors["exam_type"][exam_type][r].append(abs_err)
+                strata_abs_errors["tier"][tier][r].append(abs_err)
 
         if (i + 1) % 1000 == 0:
             log(f"  {i + 1:,} slots processed...")
@@ -88,11 +147,38 @@ def backtest(
     overall_mae = mean_absolute_error(all_act, all_pred) if all_act else float("nan")
     log(f"{'Overall':<8} {len(all_act):>8,} {overall_mae:>10.1f}")
 
+    # Compute and log stratified MAE tables
+    strata_tables: dict[str, pd.DataFrame] = {}
+    if stratify:
+        for dim, order, label in [
+            ("exam_type", _EXAM_ORDER, "Exam Type"),
+            ("tier",      _TIER_ORDER, "Institute Tier"),
+        ]:
+            tbl = _strata_mae_table(
+                strata_abs_errors[dim], rounds, dim, order
+            )
+            strata_tables[dim] = tbl
+            if not quiet:
+                r_cols = [f"R{r}" for r in rounds if f"R{r}" in tbl.columns]
+                log(f"\n  Stratified MAE by {label}:")
+                log(f"  {'Stratum':<12} {'N':>8}  " +
+                    "  ".join(f"{c:>8}" for c in r_cols) +
+                    f"  {'Overall':>10}")
+                log("  " + "-" * (12 + 10 + 10 * len(r_cols) + 12))
+                for stratum, row in tbl.iterrows():
+                    r_vals = "  ".join(
+                        f"{row[c]:>8.0f}" if not np.isnan(row[c]) else f"{'—':>8}"
+                        for c in r_cols
+                    )
+                    log(f"  {stratum:<12} {int(row['N']):>8}  {r_vals}  "
+                        f"{row['Overall MAE']:>10.1f}")
+
     return {
-        "test_year":    test_year,
-        "overall_mae":  overall_mae,
-        "round_maes":   round_maes,
-        "round_errors": round_errors,
+        "test_year":     test_year,
+        "overall_mae":   overall_mae,
+        "round_maes":    round_maes,
+        "round_errors":  round_errors,
+        "strata_tables": strata_tables,
     }
 
 

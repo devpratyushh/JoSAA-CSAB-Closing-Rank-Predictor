@@ -74,10 +74,13 @@ class SlotModel:
     Per-slot ensemble of year-trend models and round-progression ratios.
     """
 
-    def __init__(self, trend_model: str = DEFAULT_TREND_MODEL):
+    def __init__(self, trend_model: str = DEFAULT_TREND_MODEL,
+                 normalize: bool = False):
         if trend_model not in TREND_MODELS:
             raise ValueError(f"trend_model must be one of {TREND_MODELS}")
         self.trend_model = trend_model
+        self.normalize:   bool = normalize
+        self._exam_type:  str  = ""   # set during fit() when normalize=True
         # {round_no: sklearn estimator}  - year -> close_rank for that round
         self.round_year_models: dict[int, object] = {}
         # {round_no: float}  - close[r] / close[last_round], averaged across years
@@ -130,10 +133,29 @@ class SlotModel:
 
         return _ScaledEstimator(est, sx, sy)
 
+    def _denorm(self, val: float, year: int) -> float:
+        """Convert percentile back to absolute rank; no-op when normalize=False."""
+        if not self.normalize:
+            return val
+        from .pool_sizes import get_pool_size
+        return val * get_pool_size(self._exam_type, year)
+
     def fit(self, slot_df: pd.DataFrame) -> None:
         """
         slot_df: all rows for one slot, all years, all rounds.
+        When normalize=True ranks are divided by pool_size[year] before fitting,
+        storing everything in fractional-percentile space.  predict_round() and
+        predict_interval() call _denorm() to convert outputs back to absolute ranks.
         """
+        if self.normalize:
+            from .pool_sizes import get_pool_size
+            self._exam_type = str(slot_df[COL_EXAM_TYPE].iloc[0])
+            slot_df = slot_df.copy()
+            pool_sizes = slot_df[COL_YEAR].map(
+                lambda y: get_pool_size(self._exam_type, int(y))
+            )
+            slot_df[COL_CLOSE_RANK] = slot_df[COL_CLOSE_RANK] / pool_sizes
+
         self.max_round = int(slot_df[COL_ROUND].max())
         self.n_years   = int(slot_df[COL_YEAR].nunique())
 
@@ -193,7 +215,9 @@ class SlotModel:
         if len(devs) >= 2:
             n      = len(devs)
             q_idx  = min(int(np.ceil(n * coverage)) - 1, n - 1)
-            half_w = devs[q_idx]
+            # devs are in the same space as the fitted targets;
+            # _denorm converts percentile deviations to absolute rank width.
+            half_w = self._denorm(devs[q_idx], year)
         else:
             half_w = 0.20 * pred
         return max(1.0, pred - half_w), pred + half_w
@@ -226,7 +250,7 @@ class SlotModel:
         via_ratio = pred_final * ratio
 
         pred = ew * direct + (1 - ew) * via_ratio
-        return max(1.0, pred)
+        return max(1.0, self._denorm(pred, year))
 
     def predict_all_rounds(self, year: int, rounds: list[int],
                            w: float | None = None) -> dict[int, int]:
@@ -235,20 +259,26 @@ class SlotModel:
 
 
 def train(csv_path: str, model_path: str = MODEL_PATH,
-          trend_model: str = DEFAULT_TREND_MODEL) -> dict:
+          trend_model: str = DEFAULT_TREND_MODEL,
+          normalize: bool = False) -> dict:
     df = load(csv_path)
     print(f"Training on {len(df):,} rows  |  "
           f"{df[COL_YEAR].nunique()} years  |  "
           f"{df[COL_ROUND].nunique()} rounds  |  "
-          f"trend={trend_model}")
+          f"trend={trend_model}  |  normalize={normalize}")
 
     slots: dict[tuple, SlotModel] = {}
     for key, grp in df.groupby(SLOT_COLS):
-        m = SlotModel(trend_model=trend_model)
+        m = SlotModel(trend_model=trend_model, normalize=normalize)
         m.fit(grp)
         slots[tuple(key)] = m
 
-    model = {"slots": slots, "slot_cols": SLOT_COLS, "trend_model": trend_model}
+    model = {
+        "slots":      slots,
+        "slot_cols":  SLOT_COLS,
+        "trend_model": trend_model,
+        "normalize":  normalize,
+    }
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     with open(model_path, "wb") as f:

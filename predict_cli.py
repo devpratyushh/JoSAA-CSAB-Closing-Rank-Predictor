@@ -50,14 +50,15 @@ def _resolve_source(source: str) -> dict:
 def cmd_train(args):
     from pipeline.train import train
     cfg = _resolve_source(args.source)
-    train(cfg["csv"], model_path=cfg["model_path"], trend_model=args.trend_model)
+    train(cfg["csv"], model_path=cfg["model_path"], trend_model=args.trend_model,
+          normalize=args.normalize_ranks)
 
 
 def cmd_backtest(args):
     from pipeline.evaluate import backtest
     cfg = _resolve_source(args.source)
     backtest(cfg["csv"], test_year=args.year, rounds=cfg["rounds"],
-             trend_model=args.trend_model)
+             trend_model=args.trend_model, normalize=args.normalize_ranks)
 
 
 def cmd_tune(args):
@@ -170,10 +171,18 @@ def main():
         help=f"Year-trend model (default: {DEFAULT_TREND_MODEL})",
     )
 
+    normalize_kwargs = dict(
+        dest="normalize_ranks", action="store_true", default=False,
+        help="Normalise closing ranks by JEE pool size before fitting "
+             "(converts absolute ranks to pool-relative percentiles to remove "
+             "year-to-year applicant-count bias)",
+    )
+
     # train
     tr = sub.add_parser("train", help="Train model from CSV data")
     tr.add_argument("--source", **source_kwargs)
     tr.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
+    tr.add_argument("--normalize-ranks", **normalize_kwargs)
 
     # backtest
     bt = sub.add_parser("backtest", help="Evaluate model accuracy on a held-out year")
@@ -181,6 +190,7 @@ def main():
     bt.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
     bt.add_argument("--year", type=int, default=None,
                     help="Year to use as test set (default: most recent)")
+    bt.add_argument("--normalize-ranks", **normalize_kwargs)
 
     # predict
     pr = sub.add_parser("predict", help="Predict colleges for a student profile")
