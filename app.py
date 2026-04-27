@@ -211,16 +211,14 @@ with st.sidebar:
     include_reach = st.checkbox("Include reach colleges", value=True)
 
     coverage = st.select_slider(
-        "Prediction interval coverage",
+        "How safe should the prediction be?",
         options=[0.80, 0.85, 0.90, 0.95],
         value=0.90,
         format_func=lambda x: f"{int(x*100)}%",
         help=(
-            "Confidence level for the prediction interval. "
-            "A 90% interval means the historical closing rank fell within "
-            "[Lower, Upper] in ~90% of past years. "
-            "Safe / Match / Reach categories are based on where your rank "
-            "falls relative to this interval."
+            "This controls how wide the prediction band is. "
+            "Higher values make the band wider and safer. "
+            "Lower values make it narrower and stricter."
         ),
     )
 
