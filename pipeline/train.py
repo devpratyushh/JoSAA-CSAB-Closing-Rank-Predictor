@@ -354,11 +354,8 @@ class SlotModel:
         pred = self.predict_round(round_no, year)
         devs = self.round_abs_deviations.get(round_no, [])
         if len(devs) >= 2:
-            n      = len(devs)
-            q_idx  = min(int(np.ceil(n * coverage)) - 1, n - 1)
-            # devs are in the same space as the fitted targets;
-            # _denorm converts percentile deviations to absolute rank width.
-            half_w = self._denorm(devs[q_idx], year)
+            # np.quantile interpolates so adjacent coverage levels always differ.
+            half_w = self._denorm(float(np.quantile(devs, coverage)), year)
         else:
             half_w = 0.20 * pred
         return max(1.0, pred - half_w), pred + half_w
@@ -512,8 +509,7 @@ class GPMLPEnsemble:
         stats = self.slot_stats.get(slot_key, {})
         devs  = stats.get(round_no, {}).get("abs_devs", [])
         if len(devs) >= 2:
-            q_idx  = min(int(np.ceil(len(devs) * coverage)) - 1, len(devs) - 1)
-            half_w = devs[q_idx]
+            half_w = float(np.quantile(devs, coverage))
         else:
             half_w = 0.20 * pred
         return max(1.0, pred - half_w), pred + half_w

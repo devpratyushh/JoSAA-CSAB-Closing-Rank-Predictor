@@ -313,8 +313,7 @@ class GlobalMLPModel:
         stats = self.slot_stats.get(slot_key, {})
         devs  = stats.get(round_no, {}).get("abs_devs", [])
         if len(devs) >= 2:
-            q_idx  = min(int(np.ceil(len(devs) * coverage)) - 1, len(devs) - 1)
-            half_w = devs[q_idx]
+            half_w = float(np.quantile(devs, coverage))
         else:
             half_w = 0.20 * pred
         return max(1.0, pred - half_w), pred + half_w
