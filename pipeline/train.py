@@ -40,11 +40,36 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
 
 # Supported trend models for the year-signal component
 TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
-                "ridge", "svr_linear", "svr_rbf", "ar1"]
+                "ridge", "svr_linear", "svr_rbf", "ar1", "arp"]
+
+_ARP_MAX_P = 3   # maximum AR order tried by AIC selection
 
 # Exponential decay rate for weighted_ols - weight = exp(λ x (year - min_year))
 # λ=0.3 gives the most recent year ~10x the weight of the oldest year (9-year span).
 _DECAY_LAMBDA = 0.3
+
+
+class _ARpEstimator:
+    """
+    AR(p) mean-reversion estimator with AIC-based order selection.
+
+    Fits  (C_t - mu) = phi_1*(C_{t-1}-mu) + ... + phi_p*(C_{t-p}-mu)
+    by ridge-regularised OLS in demeaned space.  Order p is chosen from
+    {1 ... _ARP_MAX_P} by AIC (penalises added lags).  A small ridge term
+    (1e-6 * I) guards against near-singular design matrices when observations
+    are nearly collinear.
+
+    Prediction is always one step ahead from the last p observed closing ranks;
+    the `year` argument is ignored for the same reason as _AR1Estimator.
+    """
+    def __init__(self, mu: float, phi: np.ndarray, last_closes: np.ndarray):
+        self._mu   = mu
+        self._phi  = phi          # shape (p,): coefficients for lags 1 … p
+        self._last = last_closes  # shape (p,): [most_recent, …, p-th most recent]
+
+    def predict(self, X) -> np.ndarray:
+        pred = self._mu + float(np.dot(self._phi, self._last - self._mu))
+        return np.full(len(X), pred)
 
 
 class _AR1Estimator:
@@ -135,6 +160,36 @@ class SlotModel:
             phi   = float(np.dot(x_lag, y_lag) / denom) if denom > 0 else 0.0
             phi   = float(np.clip(phi, -1.0, 1.0))
             return _AR1Estimator(mu, phi, float(closes[-1]))
+
+        if self.trend_model == "arp":
+            mu = float(np.median(closes))
+            d  = closes - mu          # demeaned series, sorted by year
+            n  = len(d)
+
+            best_p, best_phi, best_aicc = 1, np.array([0.0]), float("inf")
+            for p in range(1, min(_ARP_MAX_P, n - 1) + 1):
+                n_pairs = n - p
+                # AICc requires n_pairs - p - 1 >= 1, i.e. n_pairs >= p + 2
+                if n_pairs < p + 2:
+                    break
+                # Design matrix: column j contains lag-(j+1) of demeaned series
+                X = np.column_stack(
+                    [d[p - j - 1 : n - j - 1] for j in range(p)]
+                )
+                y = d[p:]
+                # lstsq handles near-singular design matrices via SVD truncation
+                phi_p, _, _, _ = np.linalg.lstsq(X, y, rcond=1e-10)
+                # AICc = n*log(σ²) + 2k*n/(n-k-1)  (corrected AIC for small n)
+                resid  = y - X @ phi_p
+                sigma2 = max(float(np.var(resid, ddof=0)), 1e-10)
+                aicc   = (n_pairs * np.log(sigma2)
+                          + 2 * p * n_pairs / (n_pairs - p - 1))
+                if aicc < best_aicc:
+                    best_aicc, best_p, best_phi = aicc, p, phi_p
+
+            # Store the last best_p closing ranks: [most_recent … p-th most recent]
+            last_closes = closes[-best_p:][::-1].copy()
+            return _ARpEstimator(mu, best_phi, last_closes)
 
         Y = years.reshape(-1, 1)
         if self.trend_model == "ols":
