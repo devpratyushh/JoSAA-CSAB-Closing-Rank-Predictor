@@ -167,7 +167,7 @@ def main():
     trend_kwargs = dict(
         type=str, default=DEFAULT_TREND_MODEL,
         choices=["ols", "theil_sen", "weighted_ols", "median",
-                 "ridge", "svr_linear", "svr_rbf"],
+                 "ridge", "svr_linear", "svr_rbf", "ar1"],
         help=f"Year-trend model (default: {DEFAULT_TREND_MODEL})",
     )
 

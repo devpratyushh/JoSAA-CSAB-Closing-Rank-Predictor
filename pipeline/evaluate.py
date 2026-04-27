@@ -167,7 +167,7 @@ def backtest(
                 log("  " + "-" * (12 + 10 + 10 * len(r_cols) + 12))
                 for stratum, row in tbl.iterrows():
                     r_vals = "  ".join(
-                        f"{row[c]:>8.0f}" if not np.isnan(row[c]) else f"{'—':>8}"
+                        f"{row[c]:>8.0f}" if not np.isnan(row[c]) else f"{'-':>8}"
                         for c in r_cols
                     )
                     log(f"  {stratum:<12} {int(row['N']):>8}  {r_vals}  "

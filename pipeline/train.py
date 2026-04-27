@@ -40,11 +40,35 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
 
 # Supported trend models for the year-signal component
 TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
-                "ridge", "svr_linear", "svr_rbf"]
+                "ridge", "svr_linear", "svr_rbf", "ar1"]
 
 # Exponential decay rate for weighted_ols - weight = exp(λ x (year - min_year))
 # λ=0.3 gives the most recent year ~10x the weight of the oldest year (9-year span).
 _DECAY_LAMBDA = 0.3
+
+
+class _AR1Estimator:
+    """
+    Explicit AR(1) mean-reversion estimator.
+
+    Fits  C_t = mu + phi * (C_{t-1} - mu) + eps  on consecutive year pairs
+    via OLS without intercept in demeaned space.  At prediction time the
+    forecast is always one step ahead from the last observed closing rank:
+
+        pred = mu + phi * (last_close - mu)
+
+    The `year` argument passed to predict() is ignored intentionally; AR(1)
+    is not a year-indexed function but a state-space update from the most
+    recent observation.  phi is clamped to [-1, 1] to guarantee stationarity.
+    """
+    def __init__(self, mu: float, phi: float, last_close: float):
+        self._mu   = mu
+        self._phi  = phi
+        self._last = last_close
+
+    def predict(self, X) -> np.ndarray:
+        pred = self._mu + self._phi * (self._last - self._mu)
+        return np.full(len(X), pred)
 
 
 class _ScaledEstimator:
@@ -96,6 +120,22 @@ class SlotModel:
         """Return a fitted sklearn estimator, or None (falls back to median)."""
         if len(years) < MIN_YEARS_FOR_TREND or self.trend_model == "median":
             return None
+        # Sort by year so consecutive pairs and last_close are correct
+        order  = np.argsort(years)
+        years  = years[order]
+        closes = closes[order]
+
+        if self.trend_model == "ar1":
+            mu = float(np.median(closes))
+            demeaned = closes - mu
+            x_lag = demeaned[:-1]   # C_{t-1} - mu
+            y_lag = demeaned[1:]    # C_t     - mu
+            # OLS without intercept: phi = (x' y) / (x' x)
+            denom = float(np.dot(x_lag, x_lag))
+            phi   = float(np.dot(x_lag, y_lag) / denom) if denom > 0 else 0.0
+            phi   = float(np.clip(phi, -1.0, 1.0))
+            return _AR1Estimator(mu, phi, float(closes[-1]))
+
         Y = years.reshape(-1, 1)
         if self.trend_model == "ols":
             return LinearRegression().fit(Y, closes)
