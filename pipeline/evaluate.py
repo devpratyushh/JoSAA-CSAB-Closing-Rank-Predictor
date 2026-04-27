@@ -93,6 +93,18 @@ def backtest(
     log(f"Training slots: {len(train_groups):,}  |  "
         f"Test slots: {test_df[SLOT_COLS].drop_duplicates().shape[0]:,}")
 
+    # Global MLP: train once on all training data, batch-predict test rows
+    _global_mlp = None
+    _mlp_preds: pd.Series | None = None
+    if trend_model == "mlp":
+        from .mlp_model import GlobalMLPModel
+        _global_mlp = GlobalMLPModel()
+        _global_mlp.fit(train_df)
+        _pred_arr   = _global_mlp.predict_df(test_df.reset_index(drop=False)
+                                              .set_index(test_df.index))
+        _mlp_preds  = pd.Series(_pred_arr, index=test_df.index)
+        log("  Batch predictions computed.")
+
     round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in rounds}
 
     # strata_abs_errors["exam_type"]["advanced"][r] = [abs_err, ...]
@@ -103,16 +115,23 @@ def backtest(
     }
 
     for i, (key, test_grp) in enumerate(test_df.groupby(SLOT_COLS, sort=False)):
-        train_grp = train_groups.get(key)
-        if train_grp is None:
-            continue
+        if _global_mlp is not None:
+            if tuple(key) not in _global_mlp.slot_stats:
+                continue
+            grp_pred_vals = _mlp_preds.loc[test_grp.index].values
+            preds = {int(r): float(p)
+                     for r, p in zip(test_grp[COL_ROUND].values, grp_pred_vals)
+                     if int(r) in rounds}
+        else:
+            train_grp = train_groups.get(key)
+            if train_grp is None:
+                continue
+            m = SlotModel(trend_model=trend_model, normalize=normalize)
+            m.fit(train_grp)
+            preds = m.predict_all_rounds(test_year, rounds)
 
         inst, _prog, _q, _st, _g, exam_type = key
         tier = _get_tier(inst, exam_type)
-
-        m = SlotModel(trend_model=trend_model, normalize=normalize)
-        m.fit(train_grp)
-        preds = m.predict_all_rounds(test_year, rounds)
 
         test_by_round = test_grp.set_index(COL_ROUND)[COL_CLOSE_RANK].to_dict()
         for r in rounds:

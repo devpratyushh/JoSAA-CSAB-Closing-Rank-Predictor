@@ -40,7 +40,7 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
 
 # Supported trend models for the year-signal component
 TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
-                "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf"]
+                "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf", "mlp"]
 
 _ARP_MAX_P = 3   # maximum AR order tried by AIC selection
 
@@ -403,24 +403,36 @@ def train(csv_path: str, model_path: str = MODEL_PATH,
           f"{df[COL_ROUND].nunique()} rounds  |  "
           f"trend={trend_model}  |  normalize={normalize}")
 
-    slots: dict[tuple, SlotModel] = {}
-    for key, grp in df.groupby(SLOT_COLS):
-        m = SlotModel(trend_model=trend_model, normalize=normalize)
-        m.fit(grp)
-        slots[tuple(key)] = m
-
-    model = {
-        "slots":      slots,
-        "slot_cols":  SLOT_COLS,
-        "trend_model": trend_model,
-        "normalize":  normalize,
-    }
+    if trend_model == "mlp":
+        from .mlp_model import GlobalMLPModel
+        gm = GlobalMLPModel()
+        gm.fit(df)
+        slots = {key: gm.make_slot_adapter(key) for key in gm.slot_stats}
+        model = {
+            "slots":        slots,
+            "slot_cols":    SLOT_COLS,
+            "trend_model":  "mlp",
+            "global_model": gm,
+            "normalize":    False,
+        }
+        print(f"Trained GlobalMLPModel  ({len(slots):,} slot adapters) -> {model_path}")
+    else:
+        slots: dict[tuple, SlotModel] = {}
+        for key, grp in df.groupby(SLOT_COLS):
+            m = SlotModel(trend_model=trend_model, normalize=normalize)
+            m.fit(grp)
+            slots[tuple(key)] = m
+        model = {
+            "slots":      slots,
+            "slot_cols":  SLOT_COLS,
+            "trend_model": trend_model,
+            "normalize":  normalize,
+        }
+        print(f"Trained {len(slots):,} slot models -> {model_path}")
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
-
-    print(f"Trained {len(slots):,} slot models -> {model_path}")
     return model
 
 
