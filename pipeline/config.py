@@ -34,9 +34,10 @@ MIN_YEARS_FOR_TREND = 2
 ENSEMBLE_WEIGHT = 1.0
 
 # Default trend model for the year-signal component
-# Multi-year validation (2022-2025) shows SVR RBF outperforms Median every year
-# by 13-19% (avg MAE 2,742 vs 3,259) via kernel-induced mean reversion.
-DEFAULT_TREND_MODEL = "svr_rbf"
+# Multi-year validation (2022-2025) shows GP RBF outperforms SVR RBF every year
+# (avg MAE 2,667 vs 2,742) via Bayesian posterior mean reversion; no sklearn
+# optimisation overhead: one np.linalg.solve per slot.
+DEFAULT_TREND_MODEL = "gp_rbf"
 
 # Rounds to predict 
 JOSAA_ROUNDS = [1, 2, 3, 4, 5, 6]

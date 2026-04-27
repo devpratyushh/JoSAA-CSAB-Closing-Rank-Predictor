@@ -40,7 +40,7 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
 
 # Supported trend models for the year-signal component
 TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
-                "ridge", "svr_linear", "svr_rbf", "ar1", "arp"]
+                "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf"]
 
 _ARP_MAX_P = 3   # maximum AR order tried by AIC selection
 
@@ -94,6 +94,36 @@ class _AR1Estimator:
     def predict(self, X) -> np.ndarray:
         pred = self._mu + self._phi * (self._last - self._mu)
         return np.full(len(X), pred)
+
+
+class _FixedGPEstimator:
+    """
+    GP regression with a fixed RBF kernel; no hyperparameter optimisation.
+
+    Operates entirely in StandardScaler-normalised space (X and y both have
+    mean≈0, std≈1).  One np.linalg.solve call at fit time; O(n) predict.
+
+    Posterior mean:  k(x*, X) @ (K + noise·I)⁻¹ @ y
+    where k_ij = exp(-0.5·(xi-xj)²/ℓ²).
+
+    With ℓ=1.0 (normalised) the kernel decays to ~0 roughly 2 standard
+    deviations outside the training range, giving the same mean-reversion
+    property as SVR RBF but with a proper Bayesian posterior.
+    """
+    def __init__(self, X_s: np.ndarray, y_s: np.ndarray,
+                 length_scale: float = 1.0, noise: float = 0.1):
+        x = X_s.ravel()
+        diffs = x[:, None] - x[None, :]
+        K = np.exp(-0.5 * diffs ** 2 / length_scale ** 2)
+        self._alpha = np.linalg.solve(K + noise * np.eye(len(x)), y_s)
+        self._x     = x
+        self._ls    = length_scale
+
+    def predict(self, X) -> np.ndarray:
+        x_q = np.asarray(X).ravel()
+        diffs  = x_q[:, None] - self._x[None, :]
+        k_star = np.exp(-0.5 * diffs ** 2 / self._ls ** 2)
+        return k_star @ self._alpha
 
 
 class _ScaledEstimator:
@@ -225,6 +255,12 @@ class SlotModel:
             # RBF kernel SVR - key property: predictions outside the training
             # year range revert toward the training-target mean (≈ median).
             est = SVR(kernel="rbf", C=1.0, epsilon=0.1, gamma="scale").fit(X_s, y_s)
+        elif self.trend_model == "gp_rbf":
+            # Fixed-hyperparameter RBF GP in normalised space.
+            # No kernel optimisation; one np.linalg.solve per slot.
+            # Outside the training range the posterior mean reverts toward
+            # 0 (≈ median rank), matching SVR RBF's mean-reversion property.
+            est = _FixedGPEstimator(X_s, y_s)
         else:
             raise ValueError(f"Unknown trend_model: {self.trend_model!r}")
 
