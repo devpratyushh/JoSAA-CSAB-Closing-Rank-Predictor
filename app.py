@@ -10,6 +10,7 @@ Run:
 
 import os
 import pickle
+import re
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -69,14 +70,68 @@ def _slot_label(row: pd.Series) -> str:
     return f"{inst} · {prog}"
 
 
+def _short_institute_name(inst: str) -> str:
+    inst = inst.split("(")[0].strip()
+    replacements = [
+        (r"^Indian Institute of Technology, Design & Manufacturing\b", "IIITDM"),
+        (r"^Indian Institute of Information Technology, Design & Manufacturing\b", "IIITDM"),
+        (r"^Indian Institute of Information Technology\b", "IIIT"),
+        (r"^International Institute of Information Technology\b", "IIIT"),
+        (r"^National Institute of Technology\b", "NIT"),
+        (r"^Indian Institute of Technology\b", "IIT"),
+        (r"^Indian Institute of Engineering Science and Technology\b", "IIEST"),
+        (r"^Indian Institute of Science Education and Research\b", "IISER"),
+        (r"^Indian Institute of Science\b", "IISc"),
+    ]
+    for pattern, replacement in replacements:
+        inst = re.sub(pattern, replacement, inst, count=1)
+    inst = re.sub(r"\bUniversity\b", "Univ.", inst)
+    inst = re.sub(r"\bInstitute\b", "Inst.", inst)
+    inst = re.sub(r"\s+,\s+", ", ", inst)
+    if len(inst) > 32:
+        inst = inst[:29] + "…"
+    return inst
+
+
+def _short_program_name(prog: str) -> str:
+    prog = prog.strip()
+    replacements = [
+        (r"Computer Science and Engineering", "CSE"),
+        (r"Computer Science & Engineering", "CSE"),
+        (r"Computer Engineering", "CSE"),
+        (r"Information Technology", "IT"),
+        (r"Electronics and Communication Engineering", "ECE"),
+        (r"Electronics & Communication Engineering", "ECE"),
+        (r"Electrical Engineering", "EE"),
+        (r"Mechanical Engineering", "ME"),
+        (r"Civil Engineering", "CE"),
+        (r"Chemical Engineering", "CHE"),
+        (r"Aerospace Engineering", "AE"),
+        (r"Biotechnology", "BT"),
+        (r"Metallurgical Engineering", "Met. Engg."),
+        (r"Mathematics and Computing", "MnC"),
+        (r"Artificial Intelligence", "AI"),
+        (r"Data Science", "DS"),
+        (r"Electronics and Electrical Engineering", "EEE"),
+        (r"Electronics & Electrical Engineering", "EEE"),
+    ]
+    for pattern, replacement in replacements:
+        prog = re.sub(pattern, replacement, prog, flags=re.IGNORECASE)
+
+    # Trim common degree boilerplate from the legend label.
+    prog = re.sub(r"\s*\(4 Years?, Bachelor of Technology\)", "", prog, flags=re.IGNORECASE)
+    prog = re.sub(r"\s*\(4 Years?, Bachelor of Engineering\)", "", prog, flags=re.IGNORECASE)
+    prog = re.sub(r"\s*\(5 Years?, Bachelor of Technology\)", "", prog, flags=re.IGNORECASE)
+
+    if len(prog) > 28:
+        prog = prog[:25] + "…"
+    return prog
+
+
 def _slot_legend_label(row: pd.Series) -> str:
-    inst = row["Institute"].split("(")[0].strip()
-    prog = row["Academic Program Name"]
-    if len(inst) > 24:
-        inst = inst[:21] + "…"
-    if len(prog) > 30:
-        prog = prog[:27] + "…"
-    return f"{inst} · {prog}"
+    inst = _short_institute_name(row["Institute"])
+    prog = _short_program_name(row["Academic Program Name"])
+    return f"{inst}<br>{prog}"
 
 
 def _build_trajectory_fig(
@@ -146,7 +201,7 @@ def _build_trajectory_fig(
             linecolor=_fg,
         ),
         height=540,
-        hovermode="x unified",
+        hovermode="closest",
         plot_bgcolor="white",
         paper_bgcolor="white",
         legend=dict(
