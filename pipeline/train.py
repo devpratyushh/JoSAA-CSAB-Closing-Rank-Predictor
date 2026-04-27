@@ -81,6 +81,8 @@ class SlotModel:
         self.trend_model = trend_model
         self.normalize:   bool = normalize
         self._exam_type:  str  = ""   # set during fit() when normalize=True
+        self._institute:  str  = ""
+        self._quota:      str  = ""
         # {round_no: sklearn estimator}  - year -> close_rank for that round
         self.round_year_models: dict[int, object] = {}
         # {round_no: float}  - close[r] / close[last_round], averaged across years
@@ -137,8 +139,8 @@ class SlotModel:
         """Convert percentile back to absolute rank; no-op when normalize=False."""
         if not self.normalize:
             return val
-        from .pool_sizes import get_pool_size
-        return val * get_pool_size(self._exam_type, year)
+        from .pool_sizes import get_pool_size_for_slot
+        return val * get_pool_size_for_slot(self._exam_type, self._quota, self._institute, year)
 
     def fit(self, slot_df: pd.DataFrame) -> None:
         """
@@ -148,11 +150,14 @@ class SlotModel:
         predict_interval() call _denorm() to convert outputs back to absolute ranks.
         """
         if self.normalize:
-            from .pool_sizes import get_pool_size
+            from .pool_sizes import get_pool_size_for_slot
             self._exam_type = str(slot_df[COL_EXAM_TYPE].iloc[0])
+            self._institute = str(slot_df[COL_INSTITUTE].iloc[0])
+            self._quota     = str(slot_df[COL_QUOTA].iloc[0])
             slot_df = slot_df.copy()
             pool_sizes = slot_df[COL_YEAR].map(
-                lambda y: get_pool_size(self._exam_type, int(y))
+                lambda y: get_pool_size_for_slot(
+                    self._exam_type, self._quota, self._institute, int(y))
             )
             slot_df[COL_CLOSE_RANK] = slot_df[COL_CLOSE_RANK] / pool_sizes
 
