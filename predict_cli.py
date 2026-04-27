@@ -51,7 +51,8 @@ def cmd_train(args):
     from pipeline.train import train
     cfg = _resolve_source(args.source)
     train(cfg["csv"], model_path=cfg["model_path"], trend_model=args.trend_model,
-          normalize=args.normalize_ranks)
+          normalize=args.normalize_ranks,
+          tune_mlp=getattr(args, "tune_mlp_hparams", False))
 
 
 def cmd_backtest(args):
@@ -167,8 +168,10 @@ def main():
     trend_kwargs = dict(
         type=str, default=DEFAULT_TREND_MODEL,
         choices=["ols", "theil_sen", "weighted_ols", "median",
-                 "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf", "mlp"],
-        help=f"Year-trend model (default: {DEFAULT_TREND_MODEL})",
+                 "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf",
+                 "mlp", "mlp_ensemble"],
+        help=f"Year-trend model (default: {DEFAULT_TREND_MODEL}). "
+             "mlp_ensemble blends per-slot GP RBF with the global MLP.",
     )
 
     normalize_kwargs = dict(
@@ -183,6 +186,12 @@ def main():
     tr.add_argument("--source", **source_kwargs)
     tr.add_argument("--trend-model", dest="trend_model", **trend_kwargs)
     tr.add_argument("--normalize-ranks", **normalize_kwargs)
+    tr.add_argument(
+        "--tune-mlp-hparams", dest="tune_mlp_hparams",
+        action="store_true", default=False,
+        help="Run random hyperparameter search before final MLP training "
+             "(applies when --trend-model is mlp or mlp_ensemble).",
+    )
 
     # backtest
     bt = sub.add_parser("backtest", help="Evaluate model accuracy on a held-out year")

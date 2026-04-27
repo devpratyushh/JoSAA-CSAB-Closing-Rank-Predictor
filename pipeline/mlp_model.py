@@ -12,15 +12,23 @@ Continuous (normalised):
 
 Target: log(closing_rank)  [inverse-transform: exp(pred)]
 
-Architecture
-------------
-  concat(embeddings, conts) → Linear(256) → BN → ReLU → Dropout(0.2)
-                             → Linear(128) → BN → ReLU → Dropout(0.2)
-                             → Linear(64)  → BN → ReLU → Dropout(0.2)
+Default architecture (HP-search winner, full dataset)
+------------------------------------------------------
+  concat(embeddings, conts) → Linear(512) → BN → ReLU → Dropout(0.15)
+                             → Linear(256) → BN → ReLU → Dropout(0.15)
+                             → Linear(128) → BN → ReLU → Dropout(0.15)
                              → Linear(1)
+  (221,573 params; selected by random search over 20 trials)
 
 After training, the network is moved to CPU so the pickle is self-contained
 and per-student inference needs no GPU transfer overhead.
+
+Hyperparameter search
+---------------------
+tune_mlp_hyperparams(df, n_trials=20) runs a random search over the
+architecture and optimiser search space, using the same internal 15%
+validation split that fit() uses.  Returns the best config dict which
+can be passed as **kwargs to fit().
 """
 
 import numpy as np
@@ -98,10 +106,11 @@ class GlobalMLPModel:
     """
 
     def __init__(self):
-        self.encoders:  dict[str, _CatEncoder] = {}
-        self.year_mean: float = 2020.0
-        self.year_std:  float = 3.0
-        self.net:       _Net | None = None
+        self.encoders:    dict[str, _CatEncoder] = {}
+        self.year_mean:   float = 2020.0
+        self.year_std:    float = 3.0
+        self.net:         _Net | None = None
+        self.best_val_mse: float = float("inf")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.slot_stats: dict[tuple, dict] = {}  # per-slot round stats + n_years
         # Residual formulation: target = log(rank) - log(slot_round_median).
@@ -155,7 +164,12 @@ class GlobalMLPModel:
     # ------------------------------------------------------------------ #
 
     def fit(self, df: pd.DataFrame,
-            epochs: int = 200, lr: float = 1e-3, batch_size: int = 4096) -> None:
+            epochs: int = 200, lr: float = 1e-3, batch_size: int = 2048,
+            hidden: tuple[int, ...] = (512, 256, 128),
+            dropout: float = 0.15) -> None:
+        # Defaults tuned on JoSAA (~514k rows, 20-trial random search).
+        # For smaller datasets (e.g. CSAB ~47k rows) consider a smaller
+        # architecture and/or run tune_mlp_hyperparams() on that dataset.
         all_years = sorted(df[COL_YEAR].unique())
         self.year_mean = float(np.mean(all_years))
         self.year_std  = max(float(np.std(all_years)), 1.0)
@@ -213,7 +227,7 @@ class GlobalMLPModel:
         va_cats, va_conts, va_y = make_tensors(val_df)
 
         emb_specs = [(self.encoders[k].n, d) for k, d in zip(_CAT_KEYS, _EMB_DIMS)]
-        self.net  = _Net(emb_specs, n_cont=3).to(self.device)
+        self.net  = _Net(emb_specs, n_cont=3, hidden=hidden, dropout=dropout).to(self.device)
 
         opt     = torch.optim.Adam(self.net.parameters(), lr=lr, weight_decay=1e-4)
         sched   = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs, eta_min=lr * 0.01)
@@ -269,6 +283,7 @@ class GlobalMLPModel:
 
         if best_state:
             self.net.load_state_dict(best_state)
+        self.best_val_mse = best_val
         # Move to CPU: pickle works, inference needs no GPU transfer
         self.net   = self.net.cpu().eval()
         self.device = torch.device("cpu")
@@ -339,3 +354,79 @@ class _GlobalSlotAdapter:
     def predict_interval(self, round_no: int, year: int,
                          coverage: float = 0.90) -> tuple[float, float]:
         return self._model.predict_interval(self._slot_key, round_no, year, coverage)
+
+
+# ---------------------------------------------------------------------------
+# Hyperparameter search
+# ---------------------------------------------------------------------------
+
+_HP_SEARCH_SPACE: dict[str, list] = {
+    "hidden":     [(256, 128, 64), (512, 256, 128), (128, 64, 32),
+                   (512, 256, 128, 64), (256, 128), (384, 192, 96)],
+    "dropout":    [0.1, 0.15, 0.2, 0.25, 0.3],
+    "lr":         [3e-4, 5e-4, 1e-3, 2e-3],
+    "batch_size": [2048, 4096, 8192],
+}
+
+
+def tune_mlp_hyperparams(
+    df: "pd.DataFrame",
+    n_trials: int = 20,
+    n_epochs: int = 80,
+    quiet: bool = False,
+) -> dict:
+    """
+    Random search over MLP architecture and optimiser hyperparameters.
+
+    Each trial trains a GlobalMLPModel for up to n_epochs epochs (with the
+    same internal 15% validation split and early-stopping used by fit()), then
+    records the best validation MSE.  The config that achieves the lowest
+    val MSE across all trials is returned.
+
+    Parameters
+    ----------
+    df        : full training DataFrame (same one you would pass to fit()).
+    n_trials  : number of random configurations to try.
+    n_epochs  : maximum epochs per trial (fewer than the final 200 to keep
+                the search fast; early stopping usually cuts it shorter).
+    quiet     : suppress per-trial output.
+
+    Returns
+    -------
+    dict with keys: hidden, dropout, lr, batch_size
+    """
+    import random
+
+    def log(*a, **kw):
+        if not quiet:
+            print(*a, **kw)
+
+    rng = random.Random(42)
+    best_mse: float = float("inf")
+    best_cfg: dict  = {
+        "hidden": (512, 256, 128), "dropout": 0.15, "lr": 1e-3, "batch_size": 2048
+    }
+
+    log(f"MLP hyperparameter search  |  {n_trials} trials  |  max_epochs={n_epochs}")
+    log(f"Search space: {_HP_SEARCH_SPACE}")
+
+    for trial in range(1, n_trials + 1):
+        cfg = {k: rng.choice(v) for k, v in _HP_SEARCH_SPACE.items()}
+        log(f"\n  Trial {trial}/{n_trials}: {cfg}")
+        m = GlobalMLPModel()
+        m.fit(
+            df,
+            epochs=n_epochs,
+            lr=cfg["lr"],
+            batch_size=cfg["batch_size"],
+            hidden=cfg["hidden"],
+            dropout=cfg["dropout"],
+        )
+        log(f"    val_mse={m.best_val_mse:.6f}"
+            + ("  ← best" if m.best_val_mse < best_mse else ""))
+        if m.best_val_mse < best_mse:
+            best_mse = m.best_val_mse
+            best_cfg = cfg
+
+    log(f"\nBest config (val_mse={best_mse:.6f}): {best_cfg}")
+    return best_cfg

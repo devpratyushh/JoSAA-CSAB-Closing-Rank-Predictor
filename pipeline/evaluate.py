@@ -93,16 +93,22 @@ def backtest(
     log(f"Training slots: {len(train_groups):,}  |  "
         f"Test slots: {test_df[SLOT_COLS].drop_duplicates().shape[0]:,}")
 
-    # Global MLP: train once on all training data, batch-predict test rows
+    # Global model (MLP or GP-MLP ensemble): train once, batch-predict test rows
     _global_mlp = None
     _mlp_preds: pd.Series | None = None
     if trend_model == "mlp":
         from .mlp_model import GlobalMLPModel
         _global_mlp = GlobalMLPModel()
         _global_mlp.fit(train_df)
-        _pred_arr   = _global_mlp.predict_df(test_df.reset_index(drop=False)
-                                              .set_index(test_df.index))
-        _mlp_preds  = pd.Series(_pred_arr, index=test_df.index)
+        _pred_arr  = _global_mlp.predict_df(test_df)
+        _mlp_preds = pd.Series(_pred_arr, index=test_df.index)
+        log("  Batch predictions computed.")
+    elif trend_model == "mlp_ensemble":
+        from .train import GPMLPEnsemble
+        _global_mlp = GPMLPEnsemble()
+        _global_mlp.fit(train_df)
+        _pred_arr  = _global_mlp.predict_df(test_df)
+        _mlp_preds = pd.Series(_pred_arr, index=test_df.index)
         log("  Batch predictions computed.")
 
     round_errors: dict[int, tuple[list, list]] = {r: ([], []) for r in rounds}

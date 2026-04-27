@@ -22,9 +22,13 @@ the historical median for that round.
 
 import os
 import pickle
+from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+
+if TYPE_CHECKING:
+    from .mlp_model import GlobalMLPModel
 
 from .config import (
     COL_YEAR, COL_ROUND, COL_INSTITUTE, COL_PROGRAM,
@@ -40,7 +44,8 @@ SLOT_COLS = [COL_INSTITUTE, COL_PROGRAM, COL_QUOTA,
 
 # Supported trend models for the year-signal component
 TREND_MODELS = ["ols", "theil_sen", "weighted_ols", "median",
-                "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf", "mlp"]
+                "ridge", "svr_linear", "svr_rbf", "ar1", "arp", "gp_rbf", "mlp",
+                "mlp_ensemble"]
 
 _ARP_MAX_P = 3   # maximum AR order tried by AIC selection
 
@@ -394,19 +399,161 @@ class SlotModel:
         return {r: int(round(self.predict_round(r, year, w=w))) for r in rounds}
 
 
+class _GPMLPSlotAdapter:
+    """
+    Makes GPMLPEnsemble look like a SlotModel / _GlobalSlotAdapter for predict.py.
+    """
+
+    def __init__(self, model: "GPMLPEnsemble", slot_key: tuple,
+                 max_round: int, n_years: int,
+                 round_medians: dict, round_abs_deviations: dict):
+        self._model               = model
+        self._slot_key            = slot_key
+        self.max_round            = max_round
+        self.n_years              = n_years
+        self.round_medians        = round_medians
+        self.round_abs_deviations = round_abs_deviations
+
+    def predict_round(self, round_no: int, year: int, w=None) -> float:
+        return self._model.predict_round(self._slot_key, round_no, year)
+
+    def predict_all_rounds(self, year: int, rounds: list[int],
+                           w=None) -> dict[int, int]:
+        return {r: int(round(self.predict_round(r, year))) for r in rounds}
+
+    def predict_interval(self, round_no: int, year: int,
+                         coverage: float = 0.90) -> tuple[float, float]:
+        return self._model.predict_interval(self._slot_key, round_no, year, coverage)
+
+
+class GPMLPEnsemble:
+    """
+    GP-MLP routing ensemble.
+
+    For slots with >= MIN_YEARS_FOR_TREND years of history a per-slot GP RBF
+    model is available.  At inference time the GP and MLP predictions are
+    blended:
+
+        pred = blend_alpha * GP_pred + (1 - blend_alpha) * MLP_pred
+
+    For cold-start slots (not seen during training, or fewer than
+    MIN_YEARS_FOR_TREND historical years) only the global MLP is used.
+
+    Setting blend_alpha=1.0 gives pure-GP routing for known slots (MLP as
+    cold-start fallback); blend_alpha=0.0 degenerates to the plain MLP.
+    The default of 0.5 averages both signals for known slots.
+    """
+
+    def __init__(self, blend_alpha: float = 0.5):
+        self.blend_alpha = blend_alpha
+        self._gp_slots:  dict[tuple, SlotModel] = {}
+        self._mlp:       "GlobalMLPModel | None" = None
+        self.slot_stats: dict[tuple, dict] = {}
+
+    def fit(self, df: pd.DataFrame,
+            mlp_hidden: tuple[int, ...] = (256, 128, 64),
+            mlp_dropout: float = 0.2,
+            mlp_lr: float = 1e-3,
+            mlp_batch_size: int = 4096,
+            mlp_epochs: int = 200) -> None:
+        from .mlp_model import GlobalMLPModel
+
+        # Train GP RBF per-slot for slots with enough history
+        n_gp = 0
+        for key, grp in df.groupby(SLOT_COLS):
+            if int(grp[COL_YEAR].nunique()) >= MIN_YEARS_FOR_TREND:
+                m = SlotModel(trend_model="gp_rbf")
+                m.fit(grp)
+                self._gp_slots[tuple(key)] = m
+                n_gp += 1
+        print(f"  GPMLPEnsemble  |  GP slots={n_gp:,}")
+
+        # Train global MLP on the full dataset
+        self._mlp = GlobalMLPModel()
+        self._mlp.fit(df, epochs=mlp_epochs, lr=mlp_lr,
+                      batch_size=mlp_batch_size,
+                      hidden=mlp_hidden, dropout=mlp_dropout)
+        self.slot_stats = self._mlp.slot_stats
+
+    def predict_df(self, df: pd.DataFrame) -> np.ndarray:
+        mlp_preds = self._mlp.predict_df(df)
+        if not self._gp_slots or self.blend_alpha == 0.0:
+            return mlp_preds
+
+        preds    = mlp_preds.copy()
+        df_r     = df.reset_index(drop=True)
+        inst_arr = df_r[COL_INSTITUTE].values
+        prog_arr = df_r[COL_PROGRAM].values
+        quot_arr = df_r[COL_QUOTA].values
+        st_arr   = df_r[COL_SEAT_TYPE].values
+        gen_arr  = df_r[COL_GENDER].values
+        et_arr   = df_r[COL_EXAM_TYPE].values
+        rnd_arr  = df_r[COL_ROUND].values.astype(int)
+        yr_arr   = df_r[COL_YEAR].values.astype(int)
+
+        for i in range(len(df_r)):
+            sk = (inst_arr[i], prog_arr[i], quot_arr[i],
+                  st_arr[i],   gen_arr[i],  et_arr[i])
+            gp_m = self._gp_slots.get(sk)
+            if gp_m is not None:
+                gp_pred = gp_m.predict_round(rnd_arr[i], yr_arr[i])
+                preds[i] = (self.blend_alpha * gp_pred
+                            + (1.0 - self.blend_alpha) * mlp_preds[i])
+        return preds
+
+    def predict_round(self, slot_key: tuple, round_no: int, year: int) -> float:
+        row = dict(zip(SLOT_COLS, slot_key))
+        row.update({COL_YEAR: year, COL_ROUND: round_no})
+        return float(self.predict_df(pd.DataFrame([row]))[0])
+
+    def predict_interval(self, slot_key: tuple, round_no: int, year: int,
+                         coverage: float = 0.90) -> tuple[float, float]:
+        pred  = self.predict_round(slot_key, round_no, year)
+        stats = self.slot_stats.get(slot_key, {})
+        devs  = stats.get(round_no, {}).get("abs_devs", [])
+        if len(devs) >= 2:
+            q_idx  = min(int(np.ceil(len(devs) * coverage)) - 1, len(devs) - 1)
+            half_w = devs[q_idx]
+        else:
+            half_w = 0.20 * pred
+        return max(1.0, pred - half_w), pred + half_w
+
+    def make_slot_adapter(self, slot_key: tuple) -> _GPMLPSlotAdapter:
+        stats   = self.slot_stats.get(slot_key, {})
+        max_r   = stats.get("max_round", 6)
+        n_yrs   = stats.get("n_years",   0)
+        medians = {r: v["median"]   for r, v in stats.items() if isinstance(r, int)}
+        devs    = {r: v["abs_devs"] for r, v in stats.items() if isinstance(r, int)}
+        return _GPMLPSlotAdapter(self, slot_key, max_r, n_yrs, medians, devs)
+
+
 def train(csv_path: str, model_path: str = MODEL_PATH,
           trend_model: str = DEFAULT_TREND_MODEL,
-          normalize: bool = False) -> dict:
+          normalize: bool = False,
+          tune_mlp: bool = False) -> dict:
+    """
+    tune_mlp : when True and trend_model in ("mlp", "mlp_ensemble"), run a
+               random hyperparameter search before final training and use the
+               best found config for the final model.
+    """
     df = load(csv_path)
     print(f"Training on {len(df):,} rows  |  "
           f"{df[COL_YEAR].nunique()} years  |  "
           f"{df[COL_ROUND].nunique()} rounds  |  "
-          f"trend={trend_model}  |  normalize={normalize}")
+          f"trend={trend_model}  |  normalize={normalize}"
+          + ("  |  tune_mlp=True" if tune_mlp else ""))
+
+    mlp_cfg: dict = {}
+    if trend_model in ("mlp", "mlp_ensemble"):
+        from .mlp_model import GlobalMLPModel, tune_mlp_hyperparams
+        if tune_mlp:
+            print("\nRunning MLP hyperparameter search...")
+            mlp_cfg = tune_mlp_hyperparams(df)
+            print(f"Using tuned config: {mlp_cfg}\n")
 
     if trend_model == "mlp":
-        from .mlp_model import GlobalMLPModel
         gm = GlobalMLPModel()
-        gm.fit(df)
+        gm.fit(df, **mlp_cfg)
         slots = {key: gm.make_slot_adapter(key) for key in gm.slot_stats}
         model = {
             "slots":        slots,
@@ -416,6 +563,22 @@ def train(csv_path: str, model_path: str = MODEL_PATH,
             "normalize":    False,
         }
         print(f"Trained GlobalMLPModel  ({len(slots):,} slot adapters) -> {model_path}")
+    elif trend_model == "mlp_ensemble":
+        gm = GPMLPEnsemble()
+        gm.fit(df,
+               mlp_hidden=mlp_cfg.get("hidden",     (256, 128, 64)),
+               mlp_dropout=mlp_cfg.get("dropout",   0.2),
+               mlp_lr=mlp_cfg.get("lr",             1e-3),
+               mlp_batch_size=mlp_cfg.get("batch_size", 4096))
+        slots = {key: gm.make_slot_adapter(key) for key in gm.slot_stats}
+        model = {
+            "slots":        slots,
+            "slot_cols":    SLOT_COLS,
+            "trend_model":  "mlp_ensemble",
+            "global_model": gm,
+            "normalize":    False,
+        }
+        print(f"Trained GPMLPEnsemble  ({len(slots):,} slot adapters) -> {model_path}")
     else:
         slots: dict[tuple, SlotModel] = {}
         for key, grp in df.groupby(SLOT_COLS):
