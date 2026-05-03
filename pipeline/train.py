@@ -326,15 +326,26 @@ class SlotModel:
 
         self.round_ratios = {r: float(np.mean(v)) for r, v in ratio_accum.items()}
 
-        # Historical absolute deviations from the median per round.
-        # Used by predict_interval() to build per-slot prediction intervals.
-        # Sorted ascending so quantile lookup is O(1).
+        # Absolute residuals from the year-trend model per round.
+        # Using model residuals (not deviations from median) prevents trend-inflated
+        # intervals: a slot trending down from 12k→5k over 10 years would otherwise
+        # produce half-widths of ~4k even though year-to-year noise is only ~500.
+        # Falls back to median-based deviations when no trend model is available for
+        # a round, or when normalize=True (predictions are in fractional space there).
         self.round_abs_deviations: dict[int, list[float]] = {}
         for r, grp in slot_df.groupby(COL_ROUND):
             r = int(r)
             closes = grp[COL_CLOSE_RANK].values.astype(float)
-            med = float(np.median(closes))
-            self.round_abs_deviations[r] = sorted(float(abs(c - med)) for c in closes)
+            if not self.normalize and r in self.round_year_models:
+                preds = np.array([
+                    float(self.round_year_models[r].predict([[yr]])[0])
+                    for yr in grp[COL_YEAR].values
+                ])
+                residuals = np.abs(closes - preds)
+            else:
+                med = float(np.median(closes))
+                residuals = np.abs(closes - med)
+            self.round_abs_deviations[r] = sorted(float(x) for x in residuals)
 
     def predict_interval(self, round_no: int, year: int,
                          coverage: float = 0.90) -> tuple[float, float]:
