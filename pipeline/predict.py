@@ -122,14 +122,24 @@ def predict(
         w = model.get("ensemble_weight")
         round_preds = slot_model.predict_all_rounds(year, rounds, w=w)
 
-        # Final round = highest round this slot was seen in
+        # Final round = highest round this slot was seen in *that is also in
+        # the requested rounds list*.  Some old data has round 7 (JOSAA special
+        # rounds pre-2018); predict_all_rounds only covers rounds 1-6, so
+        # max_round=7 would leave round_preds.get(7) as None and the `or`
+        # fallback would pick round 6 — but predict_interval would still be
+        # called with round 7, giving a mismatched interval center.
         final_r = slot_model.max_round
-        pred_final = round_preds.get(final_r) or round_preds[max(round_preds)]
+        if round_preds.get(final_r):
+            interval_r = final_r
+            pred_final = round_preds[final_r]
+        else:
+            interval_r = max(round_preds)
+            pred_final = round_preds[interval_r]
 
         # Prediction interval for the final round
         has_intervals = hasattr(slot_model, "round_abs_deviations")
         if has_intervals:
-            lower, upper = slot_model.predict_interval(final_r, year, coverage)
+            lower, upper = slot_model.predict_interval(interval_r, year, coverage)
         else:
             # Old model pkl without interval support, fall back to fixed thresholds
             lower = safe_threshold * pred_final
