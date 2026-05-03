@@ -405,30 +405,32 @@ tab_table, tab_plot = st.tabs(["Results Table", "Trajectory Plot"])
 # Results table
 with tab_table:
     f1, f2 = st.columns(2)
-    program_options = sorted(df["Academic Program Name"].dropna().unique().tolist())
-    institute_options = sorted(df["Institute"].dropna().unique().tolist())
 
     with f1:
-        selected_programs = st.multiselect(
-            "Filter by Academic Program Name",
-            options=program_options,
-            help="Type to search and select one or more branches. Leave empty to show all.",
-            placeholder="e.g. Mechanical Engineering (4 Years, Bachelor of Technology)",
+        prog_kw = st.text_input(
+            "Filter by branch",
+            key="filter_prog",
+            placeholder="e.g. CSE, Mechanical, Data Science, AI",
+            help="Matches any part of the program name. 'CSE' finds all CS variants at once.",
         )
 
     with f2:
-        selected_institutes = st.multiselect(
-            "Filter by Institute",
-            options=institute_options,
-            help="Type to search and select one or more colleges. Leave empty to show all.",
-            placeholder="e.g. National Institute of Technology, Trichy",
+        inst_kw = st.text_input(
+            "Filter by institute",
+            key="filter_inst",
+            placeholder="e.g. NIT Trichy, IIT Bombay, IIIT Hyderabad",
+            help="Matches any part of the institute name.",
         )
 
     table_df = df.copy()
-    if selected_programs:
-        table_df = table_df[table_df["Academic Program Name"].isin(selected_programs)]
-    if selected_institutes:
-        table_df = table_df[table_df["Institute"].isin(selected_institutes)]
+    if prog_kw:
+        table_df = table_df[
+            table_df["Academic Program Name"].str.contains(prog_kw, case=False, na=False)
+        ]
+    if inst_kw:
+        table_df = table_df[
+            table_df["Institute"].str.contains(inst_kw, case=False, na=False)
+        ]
 
     if table_df.empty:
         st.info("No rows match the selected program/institute filter.")
