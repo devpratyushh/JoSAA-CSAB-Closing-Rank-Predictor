@@ -44,7 +44,7 @@ def _fetch_years(table: str) -> list[int]:
     return list(range(int(lo.data[0]["Year"]), int(hi.data[0]["Year"]) + 1))
 
 
-@st.cache_data(ttl=3600, show_spinner="Fetching data from Supabase…")
+@st.cache_data(ttl=3600, show_spinner="Fetching data…")
 def fetch_data(table: str, years: tuple[int, ...]) -> pd.DataFrame:
     client = _supabase_client()
     rows: list[dict] = []
@@ -87,7 +87,7 @@ with st.sidebar:
 
     available_years = _fetch_years(table)
     if not available_years:
-        st.error("No data found in Supabase. Check your table names and connection.")
+        st.error("No data found. Please try again later.")
         st.stop()
 
     selected_years = st.multiselect(
@@ -149,7 +149,7 @@ with c2:
 df = fetch_data(table, tuple(sorted(selected_years)))
 
 if df.empty:
-    st.warning("No data returned. Verify that the table has rows for the selected year(s).")
+    st.warning("No data returned. Please try again later.")
     st.stop()
 
 # Derive exam type for filtering
