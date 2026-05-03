@@ -7,11 +7,6 @@ import streamlit as st
 
 from pipeline.config import IIT_KEYWORDS, PREDICT_YEAR
 
-st.set_page_config(
-    page_title="Historical Data — JoSAA/CSAB",
-    page_icon="📊",
-    layout="wide",
-)
 
 SEAT_TYPES = [
     "OPEN", "OPEN (PwD)",
