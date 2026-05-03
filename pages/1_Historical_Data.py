@@ -40,23 +40,28 @@ def _fetch_years(table: str) -> list[int]:
 
 
 @st.cache_data(ttl=3600, show_spinner="Fetching data…")
-def fetch_data(table: str, years: tuple[int, ...]) -> pd.DataFrame:
+def fetch_data(table: str, years: tuple[int, ...]) -> pd.DataFrame | None:
+    """Returns None on a database error (e.g. statement timeout)."""
     client = _supabase_client()
     rows: list[dict] = []
-    for year in years:
-        page = 0
-        while True:
-            resp = (
-                client.table(table)
-                .select("*")
-                .eq("Year", year)
-                .range(page * 1000, page * 1000 + 999)
-                .execute()
-            )
-            rows.extend(resp.data)
-            if len(resp.data) < 1000:
-                break
-            page += 1
+    try:
+        for year in years:
+            page = 0
+            while True:
+                resp = (
+                    client.table(table)
+                    .select("*")
+                    .eq("Year", year)
+                    .range(page * 1000, page * 1000 + 999)
+                    .execute()
+                )
+                rows.extend(resp.data)
+                if len(resp.data) < 1000:
+                    break
+                page += 1
+    except Exception:
+        st.error("Couldn't load data right now. Please try again in a moment.")
+        return None
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
@@ -142,6 +147,9 @@ with c2:
 
 # Load + filter
 df = fetch_data(table, tuple(sorted(selected_years)))
+
+if df is None:
+    st.stop()
 
 if df.empty:
     st.warning("No data returned. Please try again later.")
