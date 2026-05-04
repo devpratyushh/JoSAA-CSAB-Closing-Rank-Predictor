@@ -126,7 +126,7 @@ def predict(
         # the requested rounds list*.  Some old data has round 7 (JOSAA special
         # rounds pre-2018); predict_all_rounds only covers rounds 1-6, so
         # max_round=7 would leave round_preds.get(7) as None and the `or`
-        # fallback would pick round 6 — but predict_interval would still be
+        # fallback would pick round 6. But predict_interval would still be
         # called with round 7, giving a mismatched interval center.
         final_r = slot_model.max_round
         if round_preds.get(final_r):
