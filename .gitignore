@@ -1,8 +1,22 @@
 .vscode/
 __pycache__/
 
-
 *.aux
 *.log
 *.toc
 *.out
+
+# Python environment
+venv/
+.devcontainer/
+
+# App temporary databases & private selections
+user_choices.db
+
+# Scratch and intermediate prediction files
+scratch/
+wbjee_2026_predictions.csv
+
+# Heavy raw datasets (excluded as models & database are pre-trained/compiled)
+josaa_ranks.csv
+csab_ranks.csv

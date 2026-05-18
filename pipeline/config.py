@@ -41,7 +41,7 @@ DEFAULT_TREND_MODEL = "gp_rbf"
 
 # Rounds to predict 
 JOSAA_ROUNDS = [1, 2, 3, 4, 5, 6]
-CSAB_ROUNDS  = [1, 2]          # CSAB typically has 2 special rounds
+CSAB_ROUNDS  = [1, 2, 3]       # CSAB recently had 3 special rounds
 ALL_ROUNDS   = JOSAA_ROUNDS    # default; overridden per source in CLI
 
 # CSAB quota name normalisation (current-year page uses full names)

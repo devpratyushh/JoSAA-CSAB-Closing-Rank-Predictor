@@ -100,6 +100,7 @@ def predict(
     reach_threshold: float = 1.20,   # fallback when interval unavailable
     seat_matrix:     dict | None = None,  # (inst,prog,quota,st,gender) -> seats
     coverage:        float = 0.90,   # prediction interval coverage level
+    include_5yr:     bool = False,   # whether to include 5-year courses
 ) -> pd.DataFrame:
     if model is None:
         model = load_model()
@@ -116,6 +117,9 @@ def predict(
         inst, prog, q, st, g, et = key
 
         if et != exam_type or q != quota or st != seat_type or g != gender:
+            continue
+
+        if not include_5yr and "(5 Years" in prog:
             continue
 
         # Predict all rounds (use per-model tuned weight if available)

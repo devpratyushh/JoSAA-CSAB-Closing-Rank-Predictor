@@ -85,17 +85,26 @@ def extract_table(page):
     except (PlaywrightTimeoutError, PlaywrightError):
         return []
     try:
-        tables = page.query_selector_all("table")
-        if not tables:
-            return []
-        best = max(tables, key=lambda t: len(t.query_selector_all("tr")))
-        rows = []
-        for tr in best.query_selector_all("tr"):
-            cells = tr.query_selector_all("td, th")
-            row = [c.inner_text().strip().replace("\n", " ").replace("\r", "") for c in cells]
-            if any(cell.strip() for cell in row):
-                rows.append(row)
-        return rows
+        return page.evaluate('''() => {
+            const tables = Array.from(document.querySelectorAll("table"));
+            if (tables.length === 0) return [];
+            
+            const best = tables.reduce((prev, current) => {
+                return (prev.querySelectorAll("tr").length > current.querySelectorAll("tr").length) ? prev : current;
+            });
+            
+            const rows = [];
+            for (const tr of best.querySelectorAll("tr")) {
+                const cells = Array.from(tr.querySelectorAll("td, th")).map(c => {
+                    let text = c.innerText || c.textContent || "";
+                    return text.trim().replace(/\\r/g, "").replace(/\\n/g, " ");
+                });
+                if (cells.some(c => c.trim() !== "")) {
+                    rows.push(cells);
+                }
+            }
+            return rows;
+        }''')
     except PlaywrightError:
         return []
 
