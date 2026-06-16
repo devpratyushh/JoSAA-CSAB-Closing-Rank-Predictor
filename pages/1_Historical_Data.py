@@ -662,7 +662,8 @@ unique_institutes = df["Institute"].unique() if not df.empty else []
 single_institute = len(unique_institutes) == 1
 
 if not df.empty and single_institute:
-    title_text = unique_institutes[0]
+    from pipeline.institute_data import append_nirf_rank
+    title_text = append_nirf_rank(unique_institutes[0])
     sub_text = f"Manage and inspect actual multi-year cutoffs for {unique_institutes[0]}"
 else:
     title_text = "Historical Closing Ranks"
@@ -1019,7 +1020,10 @@ for year_val in sorted_years:
     )
     
     display_cols = ["⭐"] + [c for c in display_cols_table if c != "⭐"]
-    sorted_year_df = sorted_full_year_df[display_cols]
+    sorted_year_df = sorted_full_year_df[display_cols].copy()
+    if "Institute" in sorted_year_df.columns:
+        from pipeline.institute_data import append_nirf_rank
+        sorted_year_df["Institute"] = sorted_year_df["Institute"].apply(append_nirf_rank)
 
     # Alternating row colors + bold rank fonts
     def _style_row(row):

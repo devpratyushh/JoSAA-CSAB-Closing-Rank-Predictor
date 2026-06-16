@@ -859,10 +859,12 @@ with tab_table:
             )
 
             for inst, inst_df in type_subset.groupby("Institute", sort=True):
+                from pipeline.institute_data import append_nirf_rank
+                inst_display = append_nirf_rank(inst)
                 # Auto-expand when there are few options overall or just one college in the type
                 auto_expand = len(subset) <= 15 or len(type_subset.groupby("Institute")) == 1
                 with st.expander(
-                    f"**{inst}**  ({len(inst_df)} branch{'es' if len(inst_df) > 1 else ''})",
+                    f"**{inst_display}**  ({len(inst_df)} branch{'es' if len(inst_df) > 1 else ''})",
                     expanded=auto_expand,
                 ):
                     # Premium dynamic logo header + Website + Fee Button
@@ -874,7 +876,7 @@ with tab_table:
                         st.markdown(
                             f'''<div style="display: flex; align-items: center; margin-bottom: 15px;">
                               <img src="{info["logo"]}" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={urllib.parse.quote_plus(inst.split('(')[0].strip())}&size=64&background=random&color=fff&rounded=true';" style="width: 48px; height: 48px; border-radius: 8px; margin-right: 15px; border: 1px solid #ddd; object-fit: contain; background: white;">
-                              <h5 style="margin: 0; padding: 0; font-weight: 800;"><a href="{inst_url}" target="_blank" style="text-decoration: none; color: #1a3c6e; font-weight: 800;">{inst}</a></h5>
+                              <h5 style="margin: 0; padding: 0; font-weight: 800;"><a href="{inst_url}" target="_blank" style="text-decoration: none; color: #1a3c6e; font-weight: 800;">{inst_display}</a></h5>
                             </div>''',
                             unsafe_allow_html=True,
                         )

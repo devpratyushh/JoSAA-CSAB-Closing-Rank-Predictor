@@ -378,10 +378,12 @@ else:
         
         cols = st.columns([5, 1.2])
         with cols[0]:
+            from pipeline.institute_data import append_nirf_rank
+            inst_display = append_nirf_rank(inst)
             st.markdown(
                 f"""
                 <div style="background-color:#f8fafc; border-left:4px solid #4f6ef5; padding:8px 16px; border-radius:4px; margin-top:16px; margin-bottom:8px;">
-                    <h4 style="margin:0; color:#1e293b; font-size:1.05rem;">🏛️ {inst}</h4>
+                    <h4 style="margin:0; color:#1e293b; font-size:1.05rem;">🏛️ {inst_display}</h4>
                 </div>
                 """, 
                 unsafe_allow_html=True
@@ -426,7 +428,7 @@ else:
 
     # ── 3. Bottom Print Button ───────────────────────────────────────────────
     st.markdown('<div class="no-print" style="margin-top: 24px;"></div>', unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     
     with c1:
         if st.button("🖨️ Download Page as PDF", use_container_width=True, key="print_choices_pdf"):
@@ -441,6 +443,17 @@ else:
             )
             
     with c2:
+        csv_bytes = merged_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥 Download CSV",
+            data=csv_bytes,
+            file_name="my_saved_choices.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="export_csv_my_choices"
+        )
+        
+    with c3:
         import json
         export_dict = {
             "metadata": {

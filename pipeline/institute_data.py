@@ -370,3 +370,42 @@ GFTI_PERKS: dict[str, list[str]] = {
     ],
 }
 
+
+
+# ---------------------------------------------------------------------------
+# NIRF Ranks
+# ---------------------------------------------------------------------------
+INSTITUTE_NIRF_RANKS = {
+    "Indian Institute of Engineering Science and Technology, Shibpur": "NIRF 2025: 54",
+    "Delhi Technological University": "NIRF 2025: 30",
+    "Netaji Subhas University of Technology": "NIRF 2025: 70",
+    "Punjab Engineering College": "NIRF 2025: 101-150 Band",
+    "Birla Institute of Technology, Mesra": "NIRF 2025: 51",
+    "Indira Gandhi Delhi Technical University for Women": "NIRF 2025: Participating",
+    "Institute of Chemical Technology, Mumbai": "NIRF 2025: 41",
+    "National Institute of Advanced Manufacturing Technology": "NIRF 2025: Participating",
+    "Sant Longowal Institute of Engineering and Technology": "NIRF 2025 Engineering: 79",
+    "Shri Mata Vaishno Devi University": "NIRF 2025 Engineering Band: 151-200",
+    "School of Planning & Architecture, New Delhi": "NIRF 2025 Architecture: 8",
+    "School of Planning & Architecture, Bhopal": "NIRF 2025 Architecture: 11",
+    "School of Planning & Architecture: Vijayawada": "NIRF 2025 Architecture: 19",
+    "Pondicherry Engineering College": "NIRF 2025: Participating",
+    "Puducherry Technological University": "NIRF 2025: Participating",
+    "Pandit Deendayal Energy University": "NIRF 2025 Engineering: 98",
+    "Manipal Institute of Technology": "NIRF 2025 Overall (MAHE): 14",
+    "Chhattisgarh Swami Vivekanada Technical University": "NIRF 2025: Participating",
+    "Institute of Infrastructure, Technology, Research and Management": "NIRF 2025 State Univ Band: 51-100",
+    "Jawaharlal Nehru University": "NIRF 2025 University: 2",
+    "University of Hyderabad": "NIRF 2025 Engineering: 74",
+    "Tezpur University": "NIRF 2025 University: 78",
+    "Mizoram University": "NIRF 2025 University: 81",
+    "Assam University": "NIRF 2025 University: 97",
+    "North-Eastern Hill University": "NIRF 2025 University Band: 151-200",
+}
+
+def append_nirf_rank(inst_name: str) -> str:
+    '''Appends the NIRF rank to the institute name if available.'''
+    for key, rank in INSTITUTE_NIRF_RANKS.items():
+        if key.lower() in inst_name.lower():
+            return f'{inst_name} [{rank}]'
+    return inst_name
