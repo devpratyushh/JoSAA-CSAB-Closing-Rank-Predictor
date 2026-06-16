@@ -124,14 +124,14 @@ INSTITUTE_DOMAINS: dict[str, str] = {
     "lndian Institute of Food Processing Technology":                    "iifpt.edu.in",
     "J.K. Institute of Applied Physics & Technology":                   "allduniv.ac.in",
     # Central Universities
-    "Jawaharlal Nehru University":                                       "jnu.ac.in",
-    "University of Hyderabad":                                           "uohyd.ac.in",
-    "Tezpur University":                                                 "tezu.ernet.in",
-    "Mizoram University":                                                "mzu.edu.in",
-    "Assam University":                                                  "aus.ac.in",
+    "Jawaharlal Nehru University":                                       "jnu.ac.in", # NIRF 2025 University: 2
+    "University of Hyderabad":                                           "uohyd.ac.in", # NIRF 2025 Engineering: 74
+    "Tezpur University":                                                 "tezu.ernet.in", # NIRF 2025 University: 78
+    "Mizoram University":                                                "mzu.edu.in", # NIRF 2025 University: 81
+    "Assam University":                                                  "aus.ac.in", # NIRF 2025 University: 97
     "HNB Garhwal University":                                            "hnbgu.ac.in",
     "Gurukula Kangri Vishwavidyalaya":                                   "gkv.ac.in",
-    "North-Eastern Hill University":                                     "nehu.ac.in",
+    "North-Eastern Hill University":                                     "nehu.ac.in", # NIRF 2025 University Band: 151-200
     "CU Jharkhand":                                                      "cuj.ac.in",
     "Central University of Haryana":                                     "cuh.ac.in",
     "Central University of Jammu":                                       "cujammu.ac.in",
