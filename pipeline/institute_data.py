@@ -75,15 +75,15 @@ INSTITUTE_DOMAINS: dict[str, str] = {
     "Indian institute of information technology, Raichur":              "iiitbh.ac.in",
 
     # ── GFTIs ─────────────────────────────────────────────────────────────
-    "Indian Institute of Engineering Science and Technology, Shibpur":  "iiest.ac.in",
-    "Delhi Technological University":                                    "dtu.ac.in",
-    "Netaji Subhas University of Technology":                            "nsut.ac.in",
-    "Punjab Engineering College":                                        "pec.ac.in",
-    "Birla Institute of Technology, Mesra":                              "bitmesra.ac.in",
+    "Indian Institute of Engineering Science and Technology, Shibpur":  "iiest.ac.in", # NIRF 2025: 54
+    "Delhi Technological University":                                    "dtu.ac.in", # NIRF 2025: 30
+    "Netaji Subhas University of Technology":                            "nsut.ac.in", # NIRF 2025: 70
+    "Punjab Engineering College":                                        "pec.ac.in", # NIRF 2025: 101-150 Band
+    "Birla Institute of Technology, Mesra":                              "bitmesra.ac.in", # NIRF 2025: 51
     "Birla Institute of Technology, Deoghar":                            "bitmesra.ac.in",
     "Birla Institute of Technology, Patna":                              "bitmesra.ac.in",
     "Indira Gandhi Delhi Technical University for Women":                "igdtuw.ac.in",
-    "Institute of Chemical Technology, Mumbai":                          "ictmumbai.edu.in",
+    "Institute of Chemical Technology, Mumbai":                          "ictmumbai.edu.in", # NIRF 2025: 41
     "National Institute of Advanced Manufacturing Technology":           "niamt.ac.in",
     "National Institute of Foundry & Forge Technology":                  "nifft.ac.in",
     "Sant Longowal Institute of Engineering and Technology":             "sliet.ac.in",
@@ -150,19 +150,19 @@ GFTI_PERKS: dict[str, list[str]] = {
         "🔬 Oldest technical institute in Asia",
         "🎓 Deemed University status",
         "🤝 Strong industry & research ties",
-        "💡 NIRF ranked Engineering institute",
+        "🏆 NIRF 2025 Engineering Rank: 54",
     ],
     "Delhi Technological University": [
         "🏙️ Located in Delhi – metro advantage",
         "🎓 State University with strong alumni",
         "💼 Excellent campus placement record",
         "🤝 Collaborations with IITs & NITs",
-        "🏆 Top-ranked state engineering college",
+        "🏆 NIRF 2025 Engineering Rank: 30",
     ],
     "Netaji Subhas University of Technology": [
         "🏙️ Located in Delhi",
         "🎓 State University",
-        "📈 Rapidly rising NIRF rankings",
+        "🏆 NIRF 2025 Engineering Rank: 70",
         "💼 Strong Delhi NCR placements",
     ],
     "Punjab Engineering College": [
@@ -170,14 +170,14 @@ GFTI_PERKS: dict[str, list[str]] = {
         "🎓 Deemed University status",
         "🏆 One of India's oldest engineering colleges (est. 1947)",
         "💼 Strong PSU & core sector placements",
-        "🤝 IIT Chandigarh partnership zone",
+        "📈 NIRF 2025 Engineering Rank Band: 101-150",
     ],
     "Birla Institute of Technology, Mesra": [
         "🎓 Deemed University – Ranchi",
         "🔬 Strong research culture",
         "🌏 Multiple off-campus centres across India",
         "💼 Good placements in IT & core engineering",
-        "🏆 NAAC A+ accredited",
+        "🏆 NIRF 2025 Engineering Rank: 51",
     ],
     "Birla Institute of Technology, Deoghar": [
         "🎓 BIT Mesra off-campus – Deemed Univ.",
@@ -191,12 +191,12 @@ GFTI_PERKS: dict[str, list[str]] = {
         "👩‍💻 India's first women-only engineering university",
         "🏙️ Located in Delhi",
         "💼 Strong Delhi NCR industry connections",
-        "🎓 State University status",
+        "📈 NIRF 2024 Engineering Rank Band: 201-300",
     ],
     "Institute of Chemical Technology, Mumbai": [
         "🏙️ Located in Mumbai – financial capital",
         "🔬 Premier chemical & pharma research hub",
-        "🎓 Deemed University – NAAC A++ accredited",
+        "🏆 NIRF 2025 Engineering Rank: 41",
         "💼 Exceptional chemical & pharma sector placements",
         "🌏 Odisha campus collaboration",
     ],
@@ -204,13 +204,13 @@ GFTI_PERKS: dict[str, list[str]] = {
         "🏛️ Central Government institute",
         "💰 Low tuition fees (CFTI status)",
         "🎓 Deemed University",
-        "🌾 Located in Punjab",
+        "🏆 NIRF 2024 Engineering Rank: 76",
     ],
     "Shri Mata Vaishno Devi University": [
         "🏔️ Scenic Katra, J&K campus",
         "💰 Low fee structure",
         "🏛️ Central University status",
-        "🎓 NAAC A+ accredited",
+        "📈 NIRF 2024 Engineering Rank Band: 151-200",
     ],
     "School of Planning & Architecture, New Delhi": [
         "🏙️ Premier architecture school – New Delhi",
@@ -249,8 +249,8 @@ GFTI_PERKS: dict[str, list[str]] = {
         "🌏 International collaborations & exchange programs",
         "💼 Top IT & tech placements",
         "🎓 Deemed University – NAAC A++ accredited",
+        "🏆 NIRF 2024 Engineering Rank: 56",
         "🏝️ Scenic Manipal campus",
-        "🏆 Consistently ranked among India's top private institutes",
     ],
     "Rajiv Gandhi National Aviation University": [
         "✈️ India's only aviation-focused national university",
@@ -266,7 +266,7 @@ GFTI_PERKS: dict[str, list[str]] = {
     "Puducherry Technological University": [
         "📍 Located in Puducherry – UT advantage",
         "💰 Low fee structure",
-        "🎓 State University",
+        "📈 NIRF 2024 Engineering Rank Band: 201-300",
     ],
     "Assam University, Silchar": [
         "🏛️ Central University",
