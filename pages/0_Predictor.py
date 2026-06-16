@@ -998,25 +998,26 @@ with tab_table:
                                 unsafe_allow_html=True,
                             )
 
-                    def on_editor_change(editor_key, df_subset):
-                        state = st.session_state[editor_key]
-                        if "edited_rows" in state:
-                            for row_idx, edits in state["edited_rows"].items():
-                                if "⭐" in edits:
-                                    row = df_subset.iloc[int(row_idx)]
-                                    toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
-
-                    editor_key = f"editor_{inst}_{cat}"
+                    editor_key = f"pred_editor_{inst}_{cat}"
                     st.data_editor(
                         inst_df[display_cols_no_inst].reset_index(drop=True),
                         width="stretch",
                         hide_index=True,
                         column_config=col_cfg,
                         disabled=[c for c in display_cols_no_inst if c != "⭐"],
-                        key=editor_key,
-                        on_change=on_editor_change,
-                        args=(editor_key, inst_df.reset_index(drop=True))
+                        key=editor_key
                     )
+                    
+                    state = st.session_state.get(editor_key, {})
+                    if "edited_rows" in state and state["edited_rows"]:
+                        changed = False
+                        for row_idx, edits in state["edited_rows"].items():
+                            if "⭐" in edits:
+                                row = inst_df.iloc[int(row_idx)]
+                                toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
+                                changed = True
+                        if changed:
+                            st.rerun()
 
         st.markdown("")
 

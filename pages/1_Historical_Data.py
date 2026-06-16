@@ -1040,14 +1040,6 @@ for year_val in sorted_years:
 
     styled_year_df = sorted_year_df.style.apply(_style_row, axis=1)
 
-    def on_editor_change(editor_key, full_df):
-        state = st.session_state[editor_key]
-        if "edited_rows" in state:
-            for row_idx, edits in state["edited_rows"].items():
-                if "⭐" in edits:
-                    row = full_df.iloc[int(row_idx)]
-                    toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
-
     editor_key = f"hist_editor_{year_val}_{source}"
     
     st.data_editor(
@@ -1062,10 +1054,19 @@ for year_val in sorted_years:
             "Closing Rank":  st.column_config.NumberColumn("Closing Rank",  format="%,d"),
         },
         disabled=[c for c in display_cols if c != "⭐"],
-        key=editor_key,
-        on_change=on_editor_change,
-        args=(editor_key, sorted_full_year_df)
+        key=editor_key
     )
+
+    state = st.session_state.get(editor_key, {})
+    if "edited_rows" in state and state["edited_rows"]:
+        changed = False
+        for row_idx, edits in state["edited_rows"].items():
+            if "⭐" in edits:
+                row = sorted_full_year_df.iloc[int(row_idx)]
+                toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
+                changed = True
+        if changed:
+            st.rerun()
 
     if single_institute:
         print_df = sorted_year_df.drop(columns=["⭐"], errors="ignore")

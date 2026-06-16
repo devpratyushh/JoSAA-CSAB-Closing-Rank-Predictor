@@ -364,15 +364,6 @@ else:
     
     unique_colleges = sorted(merged_df["Institute"].unique())
     
-    def on_editor_change(key, inst_df):
-        state = st.session_state[key]
-        if "edited_rows" in state:
-            for row_idx, edits in state["edited_rows"].items():
-                if "⭐" in edits:
-                    row = inst_df.iloc[int(row_idx)]
-                    toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
-                    st.rerun()
-
     for inst in unique_colleges:
         inst_df = merged_df[merged_df["Institute"] == inst].reset_index(drop=True)
         
@@ -409,10 +400,19 @@ else:
                 "2026 Predicted Closing Rank": st.column_config.NumberColumn("2026 Predicted Closing Rank", format="%,d"),
                 "Category": st.column_config.TextColumn("Safety Category"),
             },
-            disabled=["Academic Program Name", "2026 Predicted Closing Rank", "Category"],
-            on_change=on_editor_change,
-            args=(editor_key, inst_df)
+            disabled=["Academic Program Name", "2026 Predicted Closing Rank", "Category"]
         )
+
+        state = st.session_state.get(editor_key, {})
+        if "edited_rows" in state and state["edited_rows"]:
+            changed = False
+            for row_idx, edits in state["edited_rows"].items():
+                if "⭐" in edits:
+                    row = inst_df.iloc[int(row_idx)]
+                    toggle_choice(row["Institute"], row["Academic Program Name"], edits["⭐"])
+                    changed = True
+            if changed:
+                st.rerun()
 
         # Render static HTML table for clean PDF prints (hiding st.data_editor virtual canvas cutoffs)
         print_df = inst_df.drop(columns=["⭐"], errors="ignore")
