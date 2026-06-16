@@ -82,26 +82,26 @@ INSTITUTE_DOMAINS: dict[str, str] = {
     "Birla Institute of Technology, Mesra":                              "bitmesra.ac.in", # NIRF 2025: 51
     "Birla Institute of Technology, Deoghar":                            "bitmesra.ac.in",
     "Birla Institute of Technology, Patna":                              "bitmesra.ac.in",
-    "Indira Gandhi Delhi Technical University for Women":                "igdtuw.ac.in",
+    "Indira Gandhi Delhi Technical University for Women":                "igdtuw.ac.in", # NIRF 2025: Participating
     "Institute of Chemical Technology, Mumbai":                          "ictmumbai.edu.in", # NIRF 2025: 41
-    "National Institute of Advanced Manufacturing Technology":           "niamt.ac.in",
+    "National Institute of Advanced Manufacturing Technology":           "niamt.ac.in", # NIRF 2025: Participating
     "National Institute of Foundry & Forge Technology":                  "nifft.ac.in",
-    "Sant Longowal Institute of Engineering and Technology":             "sliet.ac.in",
-    "Shri Mata Vaishno Devi University":                                 "smvdu.ac.in",
-    "School of Planning & Architecture, New Delhi":                      "spa.ac.in",
-    "School of Planning & Architecture, Bhopal":                         "spabhopal.ac.in",
-    "School of Planning & Architecture: Vijayawada":                     "spaworld.org",
+    "Sant Longowal Institute of Engineering and Technology":             "sliet.ac.in", # NIRF 2025 Engineering: 79
+    "Shri Mata Vaishno Devi University":                                 "smvdu.ac.in", # NIRF 2025 Engineering Band: 151-200
+    "School of Planning & Architecture, New Delhi":                      "spa.ac.in", # NIRF 2025 Architecture: 8
+    "School of Planning & Architecture, Bhopal":                         "spabhopal.ac.in", # NIRF 2025 Architecture: 11
+    "School of Planning & Architecture: Vijayawada":                     "spaworld.org", # NIRF 2025 Architecture: 19
     "Assam University, Silchar":                                         "aus.ac.in",
-    "Pondicherry Engineering College":                                   "pec.edu",
-    "Puducherry Technological University":                                "ptuniv.ac.in",
-    "Pandit Deendayal Energy University":                                "pdpu.ac.in",
+    "Pondicherry Engineering College":                                   "pec.edu", # NIRF 2025: Participating
+    "Puducherry Technological University":                                "ptuniv.ac.in", # NIRF 2025: Participating
+    "Pandit Deendayal Energy University":                                "pdpu.ac.in", # NIRF 2025 Engineering: 98
     "Rajiv Gandhi National Aviation University":                         "rgnau.ac.in",
-    "Manipal Institute of Technology":                                   "manipal.edu",
+    "Manipal Institute of Technology":                                   "manipal.edu", # NIRF 2025 Overall (MAHE): 14
     "Islamic University of Science and Technology Kashmir":              "iust.ac.in",
     "Shri G. S. Institute of Technology and Science Indore":             "sgsits.ac.in",
     "Ghani Khan Choudhary Institute of Engineering and Technology":      "gkciet.ac.in",
     "Central institute of Technology Kokrajar":                          "cit.ac.in",
-    "Chhattisgarh Swami Vivekanada Technical University":                "csvtu.ac.in",
+    "Chhattisgarh Swami Vivekanada Technical University":                "csvtu.ac.in", # NIRF 2025: Participating
     "Gautam Buddha University":                                          "gbu.ac.in",
     "Gati Shakti Vishwavidyalaya":                                       "gsv.ac.in",
     "National Institute of Electronics and Information Technology, Ajmer":      "nielit.gov.in",
@@ -117,7 +117,7 @@ INSTITUTE_DOMAINS: dict[str, str] = {
     "Indian Institute of Handloom Technology(IIHT), Varanasi":          "iiht.ac.in",
     "Indian Institute of Handloom Technology, Salem":                    "iiht.ac.in",
     "Indian Maritime University - Visakhapatnam":                        "imu.edu.in",
-    "Institute of Infrastructure, Technology, Research and Management":  "iitram.ac.in",
+    "Institute of Infrastructure, Technology, Research and Management":  "iitram.ac.in", # NIRF 2025 State Univ Band: 51-100
     "Institute of Engineering and Technology, Dr. H. S. Gour University": "dhsgsu.ac.in",
     "Institute of Technology, Guru Ghasidas Vishwavidyalaya":           "ggu.ac.in",
     "School of Studies of Engineering and Technology, Guru Ghasidas":   "ggu.ac.in",
